@@ -1,0 +1,835 @@
+/* ==========================================================================
+   Garden Can Torra (Fundat el 1948)
+   styles.css - Sistema de Diseño Corporativo, Modo Claro/Oscuro y Catálogo
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. TIPOGRAFÍA Y FUENTES LEGIBLES
+   -------------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+:root {
+  /* Paleta Corporativa - Modo Claro */
+  --color-primary: #00A896;            /* Azul turquesa corporativo */
+  --color-primary-dark: #028090;       /* Azul turquesa oscuro para interacción */
+  --color-primary-light: #E0F7F4;      /* Turquesa muy suave para fondos activos */
+  --color-primary-hover: #00BFAB;      /* Turquesa vibrante */
+  
+  --color-earth: #3B2F2F;              /* Marrón tierra corporativo */
+  --color-earth-dark: #2D221E;         /* Marrón tierra oscuro para bordes cartoon */
+  --color-earth-light: #654E4E;        /* Marrón tierra suave para subtítulos */
+  --color-earth-muted: #7A6965;        /* Texto secundario de alta legibilidad */
+  
+  --color-bg-body: #F8F9FA;            /* Fondo principal cálido y limpio */
+  --color-surface: #FFFFFF;            /* Fondo de tarjetas y elementos */
+  --color-surface-hover: #F1F3F5;      /* Superficie interactiva */
+  
+  --color-border: #2D221E;             /* Borde estilo historieta/cartoon */
+  --color-shadow: #2D221E;             /* Sombra sólida desplazada */
+  
+  --color-stock-in: #00A896;           /* Stock disponible */
+  --color-stock-out: #DC2626;          /* Agotado */
+  --color-accent-gold: #F59E0B;        /* Acento cálido agrícola */
+
+  /* Fuentes */
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   2. PALETA PARA MODO OSCURO (.dark)
+   -------------------------------------------------------------------------- */
+.dark {
+  --color-bg-body: #141416;            /* Fondo oscuro principal suave */
+  --color-surface: #1E1E22;            /* Tarjetas y componentes */
+  --color-surface-hover: #27272D;
+  
+  --color-earth: #F4F4F6;              /* Texto principal claro */
+  --color-earth-dark: #FAFAFA;
+  --color-earth-light: #C7C7CF;
+  --color-earth-muted: #9E9EA8;
+  
+  --color-border: #00A896;             /* Bordes resaltados en turquesa corporativo */
+  --color-shadow: #00A896;             /* Sombra iluminada turquesa */
+  
+  --color-primary-light: rgba(0, 168, 150, 0.18);
+}
+
+/* --------------------------------------------------------------------------
+   3. ESTILOS BASE Y NORMALIZACIÓN
+   -------------------------------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg-body);
+  color: var(--color-earth);
+  font-family: var(--font-body);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+/* Selección de texto con identidad corporativa */
+::selection {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+}
+
+/* Barra de desplazamiento personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-body);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+/* --------------------------------------------------------------------------
+   4. COMPONENTES CARTOON (ESTILO DIVERTIDO Y SÓLIDO)
+   -------------------------------------------------------------------------- */
+.cartoon-card {
+  border: 2.5px solid var(--color-border);
+  box-shadow: 4px 4px 0px var(--color-shadow);
+  transition: transform 0.18s ease-in-out, box-shadow 0.18s ease-in-out, border-color 0.2s ease;
+  background-color: var(--color-surface);
+}
+
+.cartoon-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px var(--color-shadow);
+}
+
+.cartoon-card:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0px var(--color-shadow);
+}
+
+/* Botón estilo Cartoon */
+.cartoon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  border: 2px solid var(--color-border);
+  box-shadow: 3px 3px 0px var(--color-shadow);
+  border-radius: 0.75rem;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cartoon-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px var(--color-shadow);
+}
+
+.cartoon-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px var(--color-shadow);
+}
+
+.cartoon-btn-primary {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+}
+
+.cartoon-btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+/* Insignias Cartoon */
+.cartoon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1.5px solid var(--color-border);
+  border-radius: 9999px;
+  box-shadow: 1.5px 1.5px 0px var(--color-shadow);
+}
+
+/* --------------------------------------------------------------------------
+   5. NAVEGACIÓN Y SELECTORES
+   -------------------------------------------------------------------------- */
+.nav-category-btn {
+  position: relative;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+.nav-category-btn:hover {
+  transform: translateY(-1px);
+}
+
+.nav-category-btn.active {
+  background-color: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 -3px 0 #FFFFFF;
+}
+
+/* Chips de Filtros de Marca */
+.brand-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  border: 2px solid var(--color-earth-dark);
+  background-color: var(--color-surface);
+  color: var(--color-earth);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 2px 2px 0px var(--color-earth-dark);
+  user-select: none;
+}
+
+.brand-filter-chip:hover {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--color-primary);
+}
+
+.brand-filter-chip.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 2px 2px 0px var(--color-earth-dark);
+}
+
+.dark .brand-filter-chip.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary-hover);
+  box-shadow: 2px 2px 0px #028090;
+}
+
+.brand-filter-chip.out-of-stock-chip {
+  opacity: 0.75;
+  border-style: dashed;
+  border-color: #EF4444;
+}
+
+.brand-filter-chip.out-of-stock-chip:hover {
+  opacity: 1;
+}
+
+/* Indicadores de stock en chips de marca */
+.brand-stock-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background-color: rgba(0, 168, 150, 0.15);
+  color: var(--color-primary-dark);
+  transition: all 0.15s ease;
+}
+
+.brand-filter-chip.active .brand-stock-tag {
+  background-color: rgba(255, 255, 255, 0.35);
+  color: #FFFFFF;
+}
+
+.brand-out-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #DC2626;
+  transition: all 0.15s ease;
+}
+
+.brand-filter-chip.active .brand-out-tag {
+  background-color: #DC2626;
+  color: #FFFFFF;
+}
+
+.dark .brand-stock-tag {
+  background-color: rgba(0, 168, 150, 0.25);
+  color: #2DD4BF;
+}
+
+.dark .brand-out-tag {
+  background-color: rgba(239, 68, 68, 0.25);
+  color: #F87171;
+}
+
+/* Píldoras de navegación de subcategorías (Nivel 2 y 3) */
+.subcat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-earth);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 2px 2px 0px var(--color-shadow);
+  white-space: nowrap;
+}
+
+.subcat-pill:hover {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--color-primary);
+}
+
+.subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 2px 2px 0px var(--color-earth-dark);
+}
+
+.dark .subcat-pill {
+  border-color: #3F3F46;
+  box-shadow: 2px 2px 0px #27272A;
+}
+
+.dark .subcat-pill:hover {
+  border-color: var(--color-primary);
+  box-shadow: 2px 2px 0px var(--color-primary);
+}
+
+.dark .subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary-hover);
+  box-shadow: 2px 2px 0px #028090;
+}
+
+.deep-subcat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: 1.5px solid #CBD5E1;
+  background-color: #F8FAFC;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.deep-subcat-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  background-color: var(--color-primary-light);
+}
+
+.deep-subcat-pill.active {
+  background-color: var(--color-earth);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 1.5px 1.5px 0px var(--color-primary);
+}
+
+.dark .deep-subcat-pill {
+  background-color: #27272A;
+  color: #D4D4D8;
+  border-color: #3F3F46;
+}
+
+.dark .deep-subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary-hover);
+}
+
+/* Píldoras de micro-variedad / Nivel 4 */
+.tertiary-subcat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  border: 1.5px dashed var(--color-primary);
+  background-color: var(--color-surface);
+  color: var(--color-primary-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tertiary-subcat-pill:hover {
+  background-color: var(--color-primary-light);
+  transform: translateY(-1px);
+}
+
+.tertiary-subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-style: solid;
+  border-color: var(--color-earth-dark);
+  box-shadow: 1.5px 1.5px 0px var(--color-earth);
+}
+
+.dark .tertiary-subcat-pill {
+  background-color: #18181B;
+  color: #2DD4BF;
+  border-color: #00A896;
+}
+
+.dark .tertiary-subcat-pill.active {
+  background-color: #00A896;
+  color: #FFFFFF;
+  border-color: #2DD4BF;
+}
+
+/* Enlaces navegables en las migas de pan */
+.breadcrumb-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.breadcrumb-link:hover {
+  text-decoration: underline;
+  color: var(--color-primary-dark);
+}
+
+
+/* --------------------------------------------------------------------------
+   6. TARJETAS DEL CATÁLOGO DE PRODUCTOS (LEGIBILIDAD ÓPTIMA)
+   -------------------------------------------------------------------------- */
+.product-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 1.25rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  border: 2.5px solid var(--color-border);
+  box-shadow: 4px 4px 0px var(--color-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 6px 6px 0px var(--color-shadow);
+}
+
+/* Imagen de Producto */
+.product-image-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-color: #F1F3F5;
+  border: 2px solid var(--color-border);
+  border-radius: 1rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.dark .product-image-container {
+  background-color: #27272A;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image {
+  transform: scale(1.05);
+}
+
+/* Etiqueta de Marca */
+.product-brand {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+  margin-bottom: 0.25rem;
+}
+
+.dark .product-brand {
+  color: #2DD4BF;
+}
+
+/* Título de Producto */
+.product-title {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--color-earth);
+  margin-bottom: 0.4rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.4rem;
+}
+
+/* Descripción de Producto */
+.product-description {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--color-earth-muted);
+  margin-bottom: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-grow: 1;
+}
+
+/* SKU y Referencias */
+.product-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-earth-muted);
+  border-top: 1px dashed rgba(45, 34, 30, 0.15);
+  padding-top: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.dark .product-meta {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Bloque de Precio */
+.product-price-container {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.product-price {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--color-earth-dark);
+  letter-spacing: -0.02em;
+}
+
+.dark .product-price {
+  color: #FFFFFF;
+}
+
+.product-price-currency {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+/* Botón de Compra / Stock */
+.product-btn-add {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 800;
+  border: 2px solid var(--color-border);
+  border-radius: 0.85rem;
+  box-shadow: 3px 3px 0px var(--color-shadow);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.product-btn-add:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px var(--color-shadow);
+}
+
+.product-btn-add:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px var(--color-shadow);
+}
+
+/* Estado Agotado (Stock === 0) */
+.product-btn-add:disabled,
+.product-btn-add.out-of-stock {
+  background-color: #E4E4E7;
+  color: #71717A;
+  border-color: #A1A1AA;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.dark .product-btn-add:disabled,
+.dark .product-btn-add.out-of-stock {
+  background-color: #27272A;
+  color: #71717A;
+  border-color: #3F3F46;
+}
+
+/* Badge de Stock flotante sobre imagen */
+.stock-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--color-border);
+  box-shadow: 1.5px 1.5px 0px var(--color-shadow);
+  z-index: 2;
+}
+
+.stock-badge.in-stock {
+  background-color: #D1FAE5;
+  color: #065F46;
+}
+
+.stock-badge.out-of-stock {
+  background-color: #FEE2E2;
+  color: #991B1B;
+}
+
+.dark .stock-badge.in-stock {
+  background-color: #064E3B;
+  color: #A7F3D0;
+  border-color: var(--color-primary);
+}
+
+.dark .stock-badge.out-of-stock {
+  background-color: #7F1D1D;
+  color: #FECACA;
+  border-color: #EF4444;
+}
+
+/* --------------------------------------------------------------------------
+   7. MODALES Y FORMULARIOS
+   -------------------------------------------------------------------------- */
+input[type="text"],
+input[type="number"],
+input[type="tel"],
+input[type="email"],
+select,
+textarea {
+  font-family: var(--font-body);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(0, 168, 150, 0.25) !important;
+  outline: none;
+}
+
+/* Corrección de visibilidad para el desplegable de población */
+select, #checkoutTown {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px;
+  padding: 10px 12px;
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+}
+
+select option {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Accesibilidad de foco */
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   8. FORMULARIO DE ENDOTERAPIA & SUBIDA DE FOTOS
+   -------------------------------------------------------------------------- */
+.endo-dropzone {
+  border: 2px dashed var(--color-primary);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  text-align: center;
+  background-color: var(--color-primary-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.endo-dropzone:hover {
+  border-color: var(--color-primary-dark);
+  background-color: rgba(0, 168, 150, 0.25);
+}
+
+.endo-photo-preview {
+  position: relative;
+  display: inline-block;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  box-shadow: 2px 2px 0px var(--color-shadow);
+}
+
+.endo-photo-preview img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+}
+
+.endo-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(220, 38, 38, 0.9);
+  color: #FFFFFF;
+  border-radius: 9999px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 11px;
+  border: 1px solid #FFFFFF;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   9. VISTA DEL CARRITO Y REGLAS DE ENVÍO A DOMICILIO
+   -------------------------------------------------------------------------- */
+.shipping-progress-track {
+  height: 8px;
+  border-radius: 9999px;
+  background-color: #E4E4E7;
+  overflow: hidden;
+}
+
+.dark .shipping-progress-track {
+  background-color: #3F3F46;
+}
+
+.shipping-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), #10B981);
+  transition: width 0.3s ease;
+}
+
+.delivery-zone-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background-color: #F1F5F9;
+  color: var(--color-earth);
+  border: 1px solid #CBD5E1;
+}
+
+.dark .delivery-zone-badge {
+  background-color: #27272A;
+  color: #E4E4E7;
+  border-color: #3F3F46;
+}
+
+/* Selector interactivo de métodos de pago */
+.payment-option-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--color-border);
+  border-radius: 0.85rem;
+  cursor: pointer;
+  background-color: var(--color-surface);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.payment-option-card:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.payment-option-card.selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+  box-shadow: 2px 2px 0px var(--color-primary);
+}
+
+/* Selector de método de entrega */
+.delivery-method-btn {
+  flex: 1;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: 0.85rem;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  background-color: var(--color-surface);
+  transition: all 0.15s ease;
+}
+
+.delivery-method-btn.selected {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 3px 3px 0px var(--color-shadow);
+}
+

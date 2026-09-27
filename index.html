@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="ca" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garden Can Torra (Fundat el 1948) | PWA</title>
+  
+  <!-- Configuración PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#00A896" />
+  <meta name="description" content="Garden Can Torra - La teva botiga d'hort, jardí, mascotes i alimentació de proximitat des de 1948" />
+
+  <!-- Google Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              turquoise: '#00A896',
+              turquoiseDark: '#028090',
+              earth: '#3B2F2F',
+              earthDark: '#2D221E',
+              earthLight: '#654E4E',
+              warmBg: '#F8F9FA'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- PapaParse CDN para procesamiento de Google Sheets CSV -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <!-- Estilos personalizados vinculados -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Script principal de la aplicación vinculado -->
+  <script src="app.js" defer></script>
+</head>
+<body class="min-h-full flex flex-col bg-brand-warmBg dark:bg-zinc-900 text-brand-earth dark:text-zinc-100 font-sans transition-colors duration-200">
+
+  <!-- ========================================================================
+       1. NAVBAR PRINCIPAL
+       ======================================================================== -->
+  <header class="sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b-2 border-brand-earth dark:border-brand-turquoise">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      
+      <!-- Logotipo e Identidad Corporativa -->
+      <div class="flex items-center gap-3 cursor-pointer select-none" id="brandLogo">
+        <div class="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-brand-turquoise flex items-center justify-center text-2xl md:text-3xl shadow-inner border-2 border-brand-earth">
+          🌱
+        </div>
+        <div>
+          <h1 class="text-lg md:text-2xl font-black tracking-tight leading-none text-brand-earth dark:text-brand-turquoise">
+            GARDEN CAN TORRA
+          </h1>
+          <span class="text-[10px] md:text-xs font-bold uppercase tracking-wider text-brand-turquoise dark:text-zinc-400" data-i18n="tagline">
+            Des de 1948 • Qualitat &amp; Tradició
+          </span>
+        </div>
+      </div>
+
+      <!-- Barra de Búsqueda -->
+      <div class="hidden md:flex flex-1 max-w-md mx-4">
+        <div class="relative w-full">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Cercar pinso, llavors, tests..." 
+            data-i18n-placeholder="search_placeholder"
+            class="w-full pl-4 pr-10 py-2 rounded-xl border-2 border-brand-earth dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:border-brand-turquoise font-medium text-sm transition"
+          />
+          <span class="absolute right-3 top-2.5 text-lg select-none">🔍</span>
+        </div>
+      </div>
+
+      <!-- Ajustes: Selector de Idioma, Interruptor de Tema y Carrito -->
+      <div class="flex items-center gap-2">
+        
+        <!-- Selector de Idioma (Català / Español) -->
+        <div class="relative">
+          <select 
+            id="langSelect" 
+            aria-label="Selector de idioma"
+            class="bg-zinc-100 dark:bg-zinc-800 font-bold border-2 border-brand-earth dark:border-zinc-700 text-xs rounded-xl px-2 py-2 cursor-pointer focus:outline-none focus:border-brand-turquoise transition"
+          >
+            <option value="ca" selected>CAT 🏴</option>
+            <option value="es">ESP 🇪🇸</option>
+          </select>
+        </div>
+
+        <!-- Interruptor de Tema (Claro / Oscuro) -->
+        <button 
+          id="themeToggleBtn" 
+          type="button" 
+          aria-label="Canviar Tema Clar/Fosc" 
+          title="Canviar Tema"
+          class="p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:scale-105 transition"
+        >
+          <span id="themeIcon" class="text-base select-none">🌙</span>
+        </button>
+
+        <!-- Botón de Carrito de Compra -->
+        <button 
+          id="cartBtn" 
+          type="button" 
+          aria-label="Veure cistella de compra"
+          class="relative p-2 px-3 border-2 border-brand-earth dark:border-brand-turquoise rounded-xl bg-brand-turquoise text-white font-bold flex items-center gap-2 hover:bg-brand-turquoiseDark transition shadow cartoon-card"
+        >
+          <span class="text-base select-none">🛒</span>
+          <span 
+            id="cartCountBadge" 
+            class="bg-white text-brand-earth text-xs font-black rounded-full px-2 py-0.5 border border-brand-earth"
+          >
+            0
+          </span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Barra de Búsqueda Móvil -->
+    <div class="px-4 pb-3 md:hidden">
+      <div class="relative w-full">
+        <input 
+          type="text" 
+          id="searchInputMobile" 
+          placeholder="Cercar productes..." 
+          data-i18n-placeholder="search_placeholder"
+          class="w-full pl-4 pr-10 py-2 rounded-xl border-2 border-brand-earth dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:border-brand-turquoise font-medium text-sm"
+        />
+        <span class="absolute right-3 top-2 text-base select-none">🔍</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       2. MENÚ DE NAVEGACIÓN ESTRICTO (4 CATEGORÍAS PRINCIPALES)
+       Jerarquía estricta según especificación:
+       1. MASCOTAS
+       2. HUERTO Y JARDÍN
+       3. ALIMENTACIÓN
+       4. MISCELÁNEA
+       + Acceso a Todo el Catálogo, Asesoramiento Agrícola y Endoterapia
+       ======================================================================== -->
+  <nav class="bg-brand-turquoise text-white font-bold text-sm shadow-md sticky top-[69px] md:top-[74px] z-30 overflow-x-auto" aria-label="Navegación por categorías">
+    <div class="max-w-7xl mx-auto px-4 flex items-center space-x-1 py-1.5 scrollbar-none whitespace-nowrap">
+      
+      <!-- Catálogo Completo -->
+      <button 
+        id="navCategoryAll" 
+        type="button"
+        class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+        data-category="TODOS"
+      >
+        <span>✨</span>
+        <span data-i18n="nav_all">Tots els productes</span>
+      </button>
+
+      <!-- Categoría 1: MASCOTAS -->
+      <div class="relative group">
+        <button 
+          id="navCategoryMascotas" 
+          type="button"
+          class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+          data-category="MASCOTAS"
+        >
+          <span>🐶</span>
+          <span data-i18n="nav_pets">Mascotes</span>
+          <span class="text-xs opacity-75">▾</span>
+        </button>
+      </div>
+
+      <!-- Categoría 2: HUERTO Y JARDÍN -->
+      <div class="relative group">
+        <button 
+          id="navCategoryHuerto" 
+          type="button"
+          class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+          data-category="HUERTO_JARDIN"
+        >
+          <span>🪴</span>
+          <span data-i18n="nav_garden">Hort i Jardí</span>
+          <span class="text-xs opacity-75">▾</span>
+        </button>
+      </div>
+
+      <!-- Categoría 3: ALIMENTACIÓN (Consumo Humano / Proximidad) -->
+      <button 
+        id="navCategoryAlimentacion" 
+        type="button"
+        class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+        data-category="ALIMENTACION"
+      >
+        <span>🍎</span>
+        <span data-i18n="nav_food">Alimentació km0</span>
+      </button>
+
+      <!-- Categoría 4: MISCELÁNEA (Tapones de corcho, Varios) -->
+      <button 
+        id="navCategoryMiscelanea" 
+        type="button"
+        class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+        data-category="MISCELANEA"
+      >
+        <span>🍾</span>
+        <span data-i18n="nav_misc">Miscel·lània</span>
+      </button>
+
+      <!-- Acciones Especiales: Asesoramiento Agrícola y Endoterapia -->
+      <div class="flex items-center gap-1.5 ml-auto pl-4">
+        <button 
+          id="btnNavAsesoramiento" 
+          type="button" 
+          class="px-3 py-1.5 rounded-lg bg-amber-500 text-brand-earth hover:bg-amber-400 font-black text-xs transition flex items-center gap-1 shadow-sm"
+        >
+          <span>👨‍🌾</span>
+          <span data-i18n="nav_advice">Assessorament Agrícola</span>
+        </button>
+
+        <button 
+          id="btnNavEndoterapia" 
+          type="button" 
+          class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 font-black text-xs transition flex items-center gap-1 shadow-sm"
+        >
+          <span>💉</span>
+          <span data-i18n="nav_endo">Endoteràpia</span>
+        </button>
+      </div>
+
+    </div>
+  </nav>
+
+  <!-- ========================================================================
+       PANEL DINÁMICO DE SUBCATEGORÍAS (Árbol estricto de navegación multinivel)
+       Jerarquía estricta según SKILL.md:
+       - MASCOTAS: Perro (Alimentación [Seca, Húmeda, Snacks], Paseo, Higiene, Descanso, Comederos, Juguetes, Varios),
+                   Gato (Alimentación, Rascadores, Higiene, Paseo, Juguetes, Varios),
+                   Aves (Alimentación, Jaulas y Cuidado), Roedores, Peces, Tortugas, Granja
+       - HUERTO Y JARDÍN: Herramientas/Maquinaria, Macetas (Terracota, Plástico), Tierras/Nutrición,
+                          Fitosanitarios (Insecticidas, Fungicidas, Herbicidas, Control Roedores, Trampas, Endoterapia),
+                          Plantas/Cultivo (Semillas, Plantel), Mallas/Riego
+       - ALIMENTACIÓN: Consumo Humano/Proximidad
+       - MISCELÁNEA: Tapones de corcho, Varios
+       ======================================================================== -->
+  <section id="subcategoriesNav" class="hidden bg-white dark:bg-zinc-800 border-b-2 border-brand-earth dark:border-zinc-700 shadow-sm transition-all duration-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 space-y-2.5">
+      
+      <!-- Nivel 2: Subcategorías principales (ej. Perro, Gato, Herramientas, Macetas...) -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 flex-1" id="subcategoriesList">
+          <!-- Render dinámico de botones de nivel 2 -->
+        </div>
+        <button id="btnCloseSubcategories" type="button" aria-label="Tancar submenú" class="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 font-bold px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 transition shrink-0">
+          ✕
+        </button>
+      </div>
+
+      <!-- Nivel 3: Subcategorías profundas (ej. Alimentación, Paseo, Terracota, Plástico, Insecticidas...) -->
+      <div id="deepSubcategoriesNav" class="hidden pt-2 border-t border-zinc-200 dark:border-zinc-700 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5">
+        <span class="text-[11px] font-black uppercase text-zinc-400 dark:text-zinc-500 shrink-0">Subsecció:</span>
+        <div id="deepSubcategoriesList" class="flex items-center gap-1.5 flex-wrap">
+          <!-- Render dinámico de botones nivel 3 -->
+        </div>
+      </div>
+
+      <!-- Nivel 4: Sub-especialidades (ej. Perro > Alimentación > [Seca, Húmeda, Snacks]) -->
+      <div id="tertiarySubcategoriesNav" class="hidden pt-1.5 border-t border-dashed border-zinc-200 dark:border-zinc-700 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5">
+        <span class="text-[10px] font-black uppercase text-brand-turquoise dark:text-teal-400 shrink-0">Varietat:</span>
+        <div id="tertiarySubcategoriesList" class="flex items-center gap-1.5 flex-wrap">
+          <!-- Render dinámico de botones nivel 4 -->
+        </div>
+      </div>
+
+      <!-- Banner contextual de Endoterapia si se selecciona Fitosanitarios > Endoterapia -->
+      <div id="endoQuickBanner" class="hidden p-3 bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-500 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl select-none">💉</span>
+          <div>
+            <h4 class="font-black text-emerald-800 dark:text-emerald-300">Servei Professional d'Endoteràpia Vegetal Can Torra</h4>
+            <p class="text-[11px] text-emerald-700 dark:text-emerald-400">Tractament de processionària del pi, morrut de les palmeres i plagues d'arbrat per injecció vascular directa.</p>
+          </div>
+        </div>
+        <button id="btnOpenEndoFromBanner" type="button" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl cartoon-card transition whitespace-nowrap self-start sm:self-auto">
+          Demanar pressupost telefònic
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       BANNER DE IDENTIDAD CORPORATIVA
+       ======================================================================== -->
+  <section class="bg-gradient-to-r from-teal-600 via-brand-turquoise to-teal-500 text-white py-3.5 px-4 shadow-sm border-b-2 border-brand-earth">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl md:text-3xl select-none">🌾</span>
+        <div>
+          <h2 class="font-black text-sm md:text-base leading-snug" data-i18n="hero_title">
+            Tradició i assessorament al teu servei des de 1948
+          </h2>
+          <p class="text-xs text-teal-100" data-i18n="hero_subtitle">
+            Especialistes en sanitat vegetal, nutrició animal i cultiu de proximitat a Terrassa i comarca.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button 
+          id="heroAdviceBtn" 
+          type="button" 
+          class="bg-brand-earth hover:bg-zinc-800 text-white font-black text-xs px-3.5 py-1.5 rounded-xl cartoon-card transition flex items-center gap-1.5"
+        >
+          <span>🚜</span>
+          <span data-i18n="hero_advice_btn">Assessorament Agrònom a Botiga</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       3. CONTENEDOR PRINCIPAL DEL CATÁLOGO
+       ======================================================================== -->
+  <main id="catalogContainer" class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+
+    <!-- Navegación de Categorías Principales -->
+    <nav id="mainCategoriesNav" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" aria-label="Categorías principales">
+      <button
+        data-category="MASCOTAS"
+        class="category-btn active p-4 rounded-2xl border-2 border-brand-earth dark:border-zinc-700 bg-white dark:bg-zinc-800 font-bold text-sm text-brand-earth dark:text-zinc-100 flex flex-col items-center gap-1 hover:border-brand-turquoise transition shadow-sm"
+      >
+        <span class="text-2xl select-none">🐶</span>
+        <span>Mascotas</span>
+      </button>
+
+      <button
+        data-category="HUERTO_JARDIN"
+        class="category-btn p-4 rounded-2xl border-2 border-brand-earth dark:border-zinc-700 bg-white dark:bg-zinc-800 font-bold text-sm text-brand-earth dark:text-zinc-100 flex flex-col items-center gap-1 hover:border-brand-turquoise transition shadow-sm"
+      >
+        <span class="text-2xl select-none">🪴</span>
+        <span>Huerto y Jardín</span>
+      </button>
+
+      <button
+        data-category="ALIMENTACION"
+        class="category-btn p-4 rounded-2xl border-2 border-brand-earth dark:border-zinc-700 bg-white dark:bg-zinc-800 font-bold text-sm text-brand-earth dark:text-zinc-100 flex flex-col items-center gap-1 hover:border-brand-turquoise transition shadow-sm"
+      >
+        <span class="text-2xl select-none">🍎</span>
+        <span>Alimentación km0</span>
+      </button>
+
+      <button
+        data-category="MISCELANEA"
+        class="category-btn p-4 rounded-2xl border-2 border-brand-earth dark:border-zinc-700 bg-white dark:bg-zinc-800 font-bold text-sm text-brand-earth dark:text-zinc-100 flex flex-col items-center gap-1 hover:border-brand-turquoise transition shadow-sm"
+      xsaq>
+        <span class="text-2xl select-none">🍾</span>
+        <span>Miscelánea</span>
+      </button>
+    </nav>
+    
+    <!-- Filtros dinámicos por Marca basados en el Stock -->
+    <section id="brandFiltersSection" class="mb-6 bg-white dark:bg-zinc-800 p-4 rounded-2xl border-2 border-brand-earth dark:border-zinc-700 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-lg select-none">🏷️</span>
+          <h3 class="font-black text-xs uppercase tracking-wider text-brand-earth dark:text-zinc-300" data-i18n="filter_brand_title">
+            Filtrar per Marques:
+          </h3>
+          <span id="brandCountBadge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-brand-turquoise border border-brand-turquoise/30">
+            0 marques
+          </span>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <!-- Toggle: Només marques amb estoc -->
+          <label class="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+            <input type="checkbox" id="toggleOnlyInStockBrands" class="rounded accent-brand-turquoise cursor-pointer w-3.5 h-3.5" />
+            <span data-i18n="filter_only_instock">Només marques amb estoc</span>
+          </label>
+          <button 
+            id="clearBrandFilterBtn" 
+            type="button" 
+            class="text-xs font-bold text-brand-turquoise hover:underline transition"
+            data-i18n="clear_filters"
+          >
+            Netejar filtres
+          </button>
+        </div>
+      </div>
+      <div id="brandFilterContainer" class="flex flex-wrap gap-2 pt-1">
+        <!-- Render dinámico de botones de marca según categoría activa y su stock -->
+        <span class="text-xs text-zinc-400 italic">Selecciona una categoria per veure marques disponibles</span>
+      </div>
+    </section>
+
+    <!-- Título de vista activa, migas de pan y contador de productos -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+      <div>
+        <div id="catalogBreadcrumbs" class="text-xs font-bold text-brand-turquoise uppercase tracking-wider mb-0.5 flex items-center flex-wrap gap-1">
+          <span class="breadcrumb-link" data-level="root">Catàleg General</span>
+        </div>
+        <h2 id="currentCategoryViewTitle" class="text-xl md:text-2xl font-black text-brand-earth dark:text-zinc-100">
+          Tots els productes
+        </h2>
+      </div>
+      <span id="productCounter" class="self-start sm:self-auto text-xs font-bold px-3 py-1.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full border border-zinc-300 dark:border-zinc-700">
+        0 productes
+      </span>
+    </div>
+
+    <!-- Grid del Catálogo de Productos -->
+    <section 
+      id="productsGrid" 
+      class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+      aria-label="Llistat de productes"
+    >
+      <!-- Inserción dinámica de tarjetas de producto generadas por app.js -->
+      <div class="col-span-full py-12 text-center text-zinc-400 dark:text-zinc-500 font-bold">
+        <div class="text-4xl mb-2">📦</div>
+        <p>Carregant el catàleg de productes...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================
+       MODALES SEMÁNTICOS DE LA APLICACIÓN
+       ======================================================================== -->
+
+  <!-- Modal: Carrito y Checkout con Reglas de Reparto a Terrassa y comarca -->
+  <div id="cartModal"  class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex justify-end transition-opacity" role="dialog" aria-modal="true" aria-labelledby="cartModalTitle">
+    <div class="bg-white dark:bg-zinc-900 w-full max-w-lg h-full flex flex-col border-l-4 border-brand-turquoise shadow-2xl p-5 overflow-y-auto">
+      
+      <!-- Cabecera del Carrito -->
+      <div class="flex items-center justify-between border-b-2 border-brand-earth dark:border-zinc-700 pb-3">
+        <h3 id="cartModalTitle" class="text-lg font-black flex items-center gap-2 text-brand-earth dark:text-zinc-100">
+          <span>🛒</span> <span data-i18n="cart_title">La teva Cistella de Compra</span>
+        </h3>
+        <button id="btnCloseCartModal" type="button" aria-label="Tancar cistella" class="w-8 h-8 rounded-full border-2 border-brand-earth dark:border-zinc-600 font-bold flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Contenedor principal de la Cesta (cuando está activa) -->
+      <div id="cartActiveView" class="flex-1 flex flex-col">
+        
+        <!-- Banner de Reglas de Reparto y Zonas de Entrega -->
+        <div class="my-3 p-3 bg-teal-50 dark:bg-zinc-800/80 rounded-xl border border-brand-turquoise/40 text-xs">
+          <div class="flex items-center gap-1.5 font-black text-brand-turquoise dark:text-teal-400 mb-1">
+            <span>🚚</span>
+            <span>Repartiment exprés en menys de 48h:</span>
+          </div>
+          <p class="text-[11px] text-zinc-600 dark:text-zinc-300 mb-2">
+            Servei directe de Garden Can Torra per a les poblacions de:
+          </p>
+          <div class="flex flex-wrap gap-1 mb-2.5">
+            <span class="delivery-zone-badge">📍 Terrassa</span>
+            <span class="delivery-zone-badge">📍 Viladecavalls</span>
+            <span class="delivery-zone-badge">📍 Vacarisses</span>
+            <span class="delivery-zone-badge">📍 Ullastrell</span>
+            <span class="delivery-zone-badge">📍 Matadepera</span>
+            <span class="delivery-zone-badge">📍 Rubí</span>
+            <span class="delivery-zone-badge">📍 Sabadell</span>
+          </div>
+          <!-- Barra de progreso para envío gratuito (100€) -->
+          <div class="space-y-1">
+            <div class="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+              <span id="shippingProgressText">Enviament gratuït a partir de 100€</span>
+              <span id="shippingProgressAmount">0.00 / 100€</span>
+            </div>
+            <div class="shipping-progress-track">
+              <div id="shippingProgressBar" class="shipping-progress-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de elementos del carrito -->
+        <div id="cartItemsList" class="flex-1 overflow-y-auto py-2 divide-y divide-zinc-200 dark:divide-zinc-700 min-h-[120px]">
+          <p class="text-center py-8 text-zinc-400 font-bold">La cistella està buida.</p>
+        </div>
+
+        <!-- Formulario de Entrega, Datos de Contacto y Pago -->
+        <div id="cartCheckoutSection" class="border-t-2 border-brand-earth dark:border-zinc-700 pt-3 space-y-3">
+          
+          <!-- Selector Método de Entrega -->
+          <div>
+            <label class="block text-xs font-black uppercase text-zinc-500 dark:text-zinc-400 mb-1.5" data-i18n="checkout_delivery_type">
+              Mètode d'entrega:
+            </label>
+            <div class="flex gap-2">
+              <button id="btnPickup" type="button" class="delivery-method-btn selected text-xs">
+                <div class="text-base mb-0.5">🏬</div>
+                <div>Recollida a botiga</div>
+                <div class="text-[10px] font-normal text-teal-100">Gratis • Terrassa</div>
+              </button>
+              <button id="btnDelivery" type="button" class="delivery-method-btn text-xs">
+                <div class="text-base mb-0.5">🚚</div>
+                <div>Repartiment a domicili</div>
+                <div class="text-[10px] font-normal text-zinc-500 dark:text-zinc-400">Màxim 48 hores</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Campos de Reparto a Domicilio (Zonas Aledañas) -->
+          <div id="deliveryFields" class="space-y-2 hidden bg-zinc-50 dark:bg-zinc-800 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs">
+            <div>
+              <label class="block font-bold mb-1 text-brand-earth dark:text-zinc-200">
+                Població de lliurament (Vallès Occidental):
+              </label>
+              <select id="checkoutTown" class="w-full p-2 border-2 border-brand-earth font-medium rounded-lg">
+                <option value="Terrassa">Terrassa (Seu Can Torra)</option>
+                <option value="Viladecavalls">Viladecavalls</option>
+                <option value="Vacarisses">Vacarisses</option>
+                <option value="Ullastrell">Ullastrell</option>
+                <option value="Matadepera">Matadepera</option>
+                <option value="Rubi">Rubí</option>
+                <option value="Sabadell">Sabadell</option>
+                <!-- Opción para fuera de zona -->
+                <option value="Otra">Altra població (Només recollida en botiga)</option>
+              </select>
+
+
+
+            </div>
+            <div>
+              <label class="block font-bold mb-1 text-brand-earth dark:text-zinc-200">Adreça completa:</label>
+              <input type="text" id="checkoutAddress" placeholder="Carrer, avinguda, número, escala, pis..." class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1 text-brand-earth dark:text-zinc-200">Indicacions de repartiment (opcional):</label>
+              <input type="text" id="checkoutDeliveryNotes" placeholder="Ex: Deixar a consergeria, trucar abans d'arribar..." class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900" />
+            </div>
+            <div class="p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-lg flex items-center gap-2 text-[11px] text-emerald-800 dark:text-emerald-300 font-bold">
+              <span>⏱️</span>
+              <span>Compromís Can Torra: Repartiment realitzat en un termini màxim de 48 hores laborables.</span>
+            </div>
+          </div>
+
+          <!-- Datos del Comprador -->
+          <div class="space-y-2 text-xs">
+            <label class="block font-black text-zinc-500 dark:text-zinc-400">Dades de contacte del comprador:</label>
+            <input type="text" id="checkoutName" placeholder="Nom i cognoms *" required class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" />
+            <div class="grid grid-cols-2 gap-2">
+              <input type="tel" id="checkoutPhone" placeholder="Telèfon de contacte *" required class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" />
+              <input type="email" id="checkoutEmail" placeholder="Correu electrònic *" required class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" />
+            </div>
+          </div>
+
+          <!-- Selección de Forma de Pago (SKILL.md: Tarjeta, Efectivo, Datáfono) -->
+          <div class="space-y-1.5 text-xs">
+            <label class="block font-black text-zinc-500 dark:text-zinc-400" data-i18n="checkout_payment_type">
+              Forma de pagament:
+            </label>
+            <div class="grid grid-cols-1 gap-2" id="paymentOptionsContainer">
+              <!-- Tarjeta -->
+              <div class="payment-option-card selected" data-payment="Targeta (Visa / Mastercard)">
+                <span class="text-xl">💳</span>
+                <div class="flex-1">
+                  <div class="font-black text-xs text-brand-earth dark:text-zinc-100">Targeta bancària (Visa / Mastercard)</div>
+                  <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Passarel·la de pagament segura</div>
+                </div>
+                <input type="radio" name="paymentMethodRadio" value="Targeta (Visa / Mastercard)" checked class="accent-brand-turquoise" />
+              </div>
+              <!-- Efectivo a la entrega -->
+              <div class="payment-option-card" data-payment="Efectiu a l'entrega">
+                <span class="text-xl">💵</span>
+                <div class="flex-1">
+                  <div class="font-black text-xs text-brand-earth dark:text-zinc-100">Efectiu al lliurament</div>
+                  <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Pagament en metàl·lic en rebre la comanda</div>
+                </div>
+                <input type="radio" name="paymentMethodRadio" value="Efectiu a l'entrega" class="accent-brand-turquoise" />
+              </div>
+              <!-- Datáfono a la entrega -->
+              <div class="payment-option-card" data-payment="Datàfon a l'entrega">
+                <span class="text-xl">📱</span>
+                <div class="flex-1">
+                  <div class="font-black text-xs text-brand-earth dark:text-zinc-100">Datàfon al lliurament</div>
+                  <div class="text-[10px] text-zinc-500 dark:text-zinc-400">El repartidor porta TPV per cobrar amb targeta</div>
+                </div>
+                <input type="radio" name="paymentMethodRadio" value="Datàfon a l'entrega" class="accent-brand-turquoise" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Desglose Económico -->
+          <div class="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl space-y-1.5 text-xs">
+            <div class="flex justify-between text-zinc-600 dark:text-zinc-400">
+              <span>Subtotal productes:</span>
+              <span id="cartSubtotalText" class="font-bold">0.00€</span>
+            </div>
+            <div class="flex justify-between text-zinc-600 dark:text-zinc-400">
+              <span>Despeses de repartiment:</span>
+              <span id="cartShippingCostText" class="font-bold text-emerald-600 dark:text-emerald-400">Gratis</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-2 border-t border-zinc-300 dark:border-zinc-700 text-sm font-black">
+              <span class="text-brand-earth dark:text-zinc-100" data-i18n="cart_total">Total comanda:</span>
+              <span id="cartTotalText" class="text-xl text-brand-turquoise font-black">0.00€</span>
+            </div>
+          </div>
+
+          <!-- Botón Tramitar Pedido -->
+          <button id="btnCheckoutSubmit" type="button" class="w-full py-3 bg-brand-turquoise hover:bg-brand-turquoiseDark text-white font-black text-sm rounded-xl cartoon-card transition shadow-md flex items-center justify-center gap-2">
+            <span>🛍️</span>
+            <span data-i18n="checkout_confirm_btn">Finalitzar Comanda</span>
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- Vista de Confirmación de Pedido (se muestra tras tramitar con éxito) -->
+      <div id="cartSuccessView" class="hidden flex-1 flex flex-col items-center justify-center text-center p-4">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center text-3xl mb-4 border-2 border-emerald-500">
+          ✓
+        </div>
+        <h4 class="text-xl font-black text-brand-earth dark:text-zinc-100 mb-1" id="orderSuccessTitle">
+          Comanda rebuda amb èxit!
+        </h4>
+        <p class="text-xs text-brand-turquoise font-bold mb-4" id="orderSuccessId">Ref: GCT-000000</p>
+        
+        <div class="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 w-full text-left text-xs space-y-2 mb-6">
+          <div><strong>Client:</strong> <span id="successClientName">--</span></div>
+          <div><strong>Mètode d'entrega:</strong> <span id="successDeliveryMethod">--</span></div>
+          <div><strong>Termini:</strong> <span class="text-emerald-600 dark:text-emerald-400 font-black">Màxim 48 hores</span></div>
+          <div><strong>Forma de pagament:</strong> <span id="successPaymentMethod">--</span></div>
+          <div class="border-t border-zinc-200 dark:border-zinc-700 pt-2 font-black flex justify-between">
+            <span>Total abonat:</span>
+            <span id="successTotalText" class="text-brand-turquoise">0.00€</span>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-zinc-500 mb-6 leading-relaxed">
+          Hem enviat el justificant complet per correu electrònic. El nostre equip de Garden Can Torra està preparant la teva comanda.
+        </p>
+
+        <button id="btnContinueShopping" type="button" class="px-6 py-2.5 bg-brand-turquoise hover:bg-brand-turquoiseDark text-white font-black text-xs rounded-xl cartoon-card transition">
+          Continuar Comprant
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal: Asesoramiento Agrícola en Tienda Física -->
+  <div id="modalAsesoramiento" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modalAsesoramientoTitle">
+    <div class="bg-white dark:bg-zinc-900 max-w-lg w-full rounded-2xl border-4 border-brand-earth dark:border-brand-turquoise p-6 cartoon-card relative">
+      <button id="btnCloseAsesoramientoModal" type="button" class="absolute top-4 right-4 text-xl font-bold text-zinc-500 hover:text-black dark:hover:text-white">✕</button>
+      <div class="text-center mb-4">
+        <div class="text-5xl mb-2 select-none">👨‍🌾</div>
+        <h3 id="modalAsesoramientoTitle" class="text-xl font-black text-brand-earth dark:text-brand-turquoise">Assessorament Agrònom Personalitzat</h3>
+        <span class="text-xs font-bold text-zinc-500">Servei tècnic exclusiu a la botiga física</span>
+      </div>
+      <div class="text-xs space-y-3 text-zinc-600 dark:text-zinc-300 leading-relaxed">
+        <p>A <strong>Garden Can Torra</strong> comptem amb tècnics especialitzats en sanitat vegetal, tractaments biològics, abonaments ecològics i resolució de plagues de l'hort i el jardí.</p>
+        <div class="p-3 bg-teal-50 dark:bg-zinc-800 border-2 border-brand-turquoise rounded-xl">
+          <p class="font-bold text-brand-turquoise">📍 Visita'ns sense compromís:</p>
+          <p>T'ajudem a escollir el tractament més respectuós i eficaç per a les teves plantes o cultius.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Formulario Interactivo de Endoterapia (Con todos los campos de SKILL.md) -->
+  <div id="modalEndoterapia" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modalEndoterapiaTitle">
+    <div class="bg-white dark:bg-zinc-900 max-w-xl w-full rounded-2xl border-4 border-brand-earth dark:border-emerald-500 p-6 cartoon-card max-h-[92vh] overflow-y-auto relative">
+      <button id="btnCloseEndoterapiaModal" type="button" aria-label="Tancar formulari d'endoteràpia" class="absolute top-4 right-4 text-xl font-bold text-zinc-500 hover:text-black dark:hover:text-white">✕</button>
+      
+      <!-- Cabecera de Endoterapia -->
+      <div class="mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xl shadow">
+            💉
+          </div>
+          <div>
+            <h3 id="modalEndoterapiaTitle" class="text-xl font-black text-brand-earth dark:text-emerald-400 leading-tight">
+              Sol·licitud de Tractament d'Endoteràpia
+            </h3>
+            <p class="text-[11px] text-zinc-500 dark:text-zinc-400">
+              Tractament vascular ecològic directe al tronc per injecció. Màxima eficàcia sense polvorització aèria.
+            </p>
+          </div>
+        </div>
+
+        <!-- AVISO OBLIGATORIO: Presupuesto cerrado por llamada -->
+        <div class="mt-3 p-3 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-xl flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+          <span class="text-base select-none">📞</span>
+          <p class="leading-relaxed">
+            <strong>Important:</strong> El pressupost definitiu es tanca per trucada telefònica directa amb el nostre agrònom expert després de valorar les dades tècniques i les fotografies de l'arbrat.
+          </p>
+        </div>
+      </div>
+
+      <!-- Formulario de Solicitud -->
+      <form id="formEndoterapia" class="space-y-4 text-xs">
+        
+        <!-- Campo 1: Tipo de árbol / Especie con sugerencias rápidas -->
+        <div>
+          <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+            1. Tipus d'arbre / Espècie a tractar: *
+          </label>
+          <div class="flex flex-wrap gap-1.5 mb-2" id="endoTreePills">
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Pi (Processionària)">🌲 Pi (Processionària)</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Palmera (Morrut roig)">🌴 Palmera (Morrut)</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Plàtan d'ombra (Tigre)">🌳 Plàtan d'ombra</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Alzina o Roure">🌰 Alzina / Roure</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Fruiter">🍎 Fruiter</button>
+          </div>
+          <input 
+            type="text" 
+            id="endoTreeType" 
+            placeholder="Escriu l'espècie o selecciona una opció superior..." 
+            required 
+            class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-bold" 
+          />
+        </div>
+
+        <!-- Campos 2 y 3: Cantidad de árboles con Stepper y Perímetro aproximado -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Cantidad con Stepper +/- -->
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              2. Quantitat d'arbres: *
+            </label>
+            <div class="flex items-center gap-2">
+              <button type="button" id="btnDecEndoQty" class="w-9 h-9 rounded-xl border-2 border-brand-earth dark:border-zinc-700 font-black text-base bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 flex items-center justify-center">-</button>
+              <input 
+                type="number" 
+                id="endoQuantity" 
+                min="1" 
+                max="500" 
+                value="1" 
+                required 
+                class="flex-1 p-2 text-center border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-black text-base" 
+              />
+              <button type="button" id="btnIncEndoQty" class="w-9 h-9 rounded-xl border-2 border-brand-earth dark:border-zinc-700 font-black text-base bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 flex items-center justify-center">+</button>
+            </div>
+          </div>
+
+
+          <!-- 3. Perímetro del tronco dinámico -->
+          <div>
+            <label class="block text-xs font-bold mb-2">3. Perímetro del tronco por árbol (cm): *</label>
+            <div id="endoPerimetersContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <!-- Se generará dinámicamente mediante JavaScript -->
+              <div>
+                <label class="text-[11px] text-stone-400">Árbol 1</label>
+                <input type="number" class="endo-perimeter-input w-full p-2.5 rounded-xl border text-sm dark:bg-zinc-900" placeholder="Ej: 75" required>
+              </div>
+            </div>
+          </div>
+
+
+        <!-- Campos 4, 5 y 6: Datos de Contacto y Ubicación -->
+        <div class="space-y-3 pt-1">
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              4. Nom i Cognoms de contacte: *
+            </label>
+            <input 
+              type="text" 
+              id="endoName" 
+              placeholder="El teu nom complet" 
+              required 
+              class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" 
+            />
+          </div>
+
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              5. Adreça o Finca de l'actuació (amb municipi): *
+            </label>
+            <input 
+              type="text" 
+              id="endoAddress" 
+              placeholder="Ex: Camí de Can Bogunyà s/n, Terrassa" 
+              required 
+              class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" 
+            />
+          </div>
+
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              6. Telèfon de contacte directe per tancar el pressupost: *
+            </label>
+            <input 
+              type="tel" 
+              id="endoPhone" 
+              placeholder="600 00 00 00" 
+              required 
+              class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-bold text-sm" 
+            />
+          </div>
+        </div>
+
+        <!-- Campo 7: Botón para subir fotos con Previsualización Interactiva -->
+        <div>
+          <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+            7. Pujar foto de l'arbre o de la plaga (opcional però recomanat):
+          </label>
+          
+          <div id="endoDropzone" class="endo-dropzone">
+            <input 
+              type="file" 
+              id="endoPhoto" 
+              accept="image/*" 
+              class="hidden" 
+            />
+            <div id="endoUploadPrompt" class="flex flex-col items-center">
+              <span class="text-3xl mb-1">📷</span>
+              <span class="font-black text-brand-turquoise dark:text-teal-400">Prem aquí per seleccionar o arrossega una foto</span>
+              <span class="text-[10px] text-zinc-500 mt-0.5">Formats suportats: JPG, PNG, WEBP</span>
+            </div>
+            
+            <!-- Contenedor de Vista Previa -->
+            <div id="endoPhotoPreviewContainer" class="hidden flex items-center justify-center gap-3 pt-1">
+              <div class="endo-photo-preview">
+                <img id="endoPhotoPreviewImg" src="" alt="Previsualització de l'arbre" />
+                <button type="button" id="btnRemoveEndoPhoto" class="endo-photo-remove" title="Eliminar foto">✕</button>
+              </div>
+              <div class="text-left text-xs">
+                <p id="endoPhotoName" class="font-bold text-zinc-700 dark:text-zinc-200 truncate max-w-[200px]">foto.jpg</p>
+                <p id="endoPhotoSize" class="text-[10px] text-zinc-400">0 KB</p>
+                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Foto adjunta correctament</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón de Envío -->
+        <button 
+          type="submit" 
+          id="btnSubmitEndo"
+          class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl cartoon-card transition shadow-md flex items-center justify-center gap-2 text-sm mt-2"
+        >
+          <span>📨</span>
+          <span>Enviar Sol·licitud per a Pressupost Telefònic</span>
+        </button>
+
+      </form>
+
+      <!-- Estado de Éxito de la Solicitud de Endoterapia -->
+      <div id="endoSuccessView" class="hidden text-center py-6 space-y-4">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center text-3xl mx-auto border-2 border-emerald-500">
+          ✓
+        </div>
+        <h4 class="text-xl font-black text-brand-earth dark:text-zinc-100">
+          Sol·licitud d'Endoteràpia Registrada!
+        </h4>
+        <p class="text-xs text-emerald-600 dark:text-emerald-400 font-black" id="endoSuccessRef">
+          Expedient: ENDO-1948
+        </p>
+        <div class="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 text-left text-xs space-y-1.5 max-w-md mx-auto">
+          <p><strong>Arbre:</strong> <span id="endoSuccessTree">--</span></p>
+          <p><strong>Quantitat:</strong> <span id="endoSuccessQty">--</span></p>
+          <p><strong>Perímetre:</strong> <span id="endoSuccessPerimeter">--</span></p>
+          <p><strong>Contacte:</strong> <span id="endoSuccessContact">--</span></p>
+          <p class="pt-2 text-amber-700 dark:text-amber-300 font-bold border-t border-zinc-200 dark:border-zinc-700">
+            📞 Els tècnics de Garden Can Torra et trucaran en un màxim de 24-48h per confirmar el diagnòstic i tancar el pressupost exacte.
+          </p>
+        </div>
+        <button id="btnCloseEndoSuccess" type="button" class="px-6 py-2.5 bg-brand-turquoise text-white font-black text-xs rounded-xl cartoon-card transition">
+          D'acord, tancar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       4. FOOTER SEMÁNTICO
+       ======================================================================== -->
+  <footer class="mt-auto bg-brand-earth text-white border-t-4 border-brand-turquoise py-8 px-4">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-2xl select-none">🌱</span>
+          <h4 class="font-black text-sm text-brand-turquoise">GARDEN CAN TORRA</h4>
+        </div>
+        <p class="text-zinc-300 leading-relaxed">
+          Fundat el 1948. Més de 75 anys d'experiència al servei de l'agricultura, jardineria, mascotes i alimentació tradicional.
+        </p>
+      </div>
+      <div>
+        <h4 class="font-black text-sm text-brand-turquoise mb-2">Repartiment a Domicili (48h)</h4>
+        <p class="text-zinc-300 leading-relaxed">
+          Zones cobertes: Terrassa, Viladecavalls, Vacarisses, Ullastrell, Matadepera, Rubí i Sabadell.
+        </p>
+      </div>
+      <div>
+        <h4 class="font-black text-sm text-brand-turquoise mb-2">Contacte &amp; Horaris</h4>
+        <p class="text-zinc-300 leading-relaxed">
+          Atenció al client i assessorament tècnic presencial a la botiga física.
+        </p>
+      </div>
+    </div>
+    <div class="max-w-7xl mx-auto mt-6 pt-4 border-t border-zinc-700 text-center text-[11px] text-zinc-400">
+      © Garden Can Torra 1948. Tots els drets reservats. Aplicació Web Progressiva (PWA).
+    </div>
+  </footer>
+
+    <!-- Resto de tu contenido HTML... -->
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registrado correctamente', reg))
+          .catch(err => console.error('Error al registrar el Service Worker', err));
+      });
+    }
+  </script>
+
+</body>
+</html>

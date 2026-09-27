@@ -1,0 +1,27 @@
+ID de implementación
+AKfycbwZhayvGZwZuIPZQdksWIVG8jKS9okmFW1enlMAW0kO2FlJUoA_8vAptpytj3Q61DHE
+
+Aplicación web 1era versión
+URL
+https://script.google.com/macros/s/AKfycbwZhayvGZwZuIPZQdksWIVG8jKS9okmFW1enlMAW0kO2FlJUoA_8vAptpytj3Q61DHE/exec
+
+
+Último version 2
+ID de implementación
+AKfycbzo-sMi-X2aIG7gkph_Zi8tfEBQRpl80zESHPYH9R0X3_ZGBXHWqfrkAVWSlgaSMBGe
+Aplicación web
+URL
+https://script.google.com/macros/s/AKfycbzo-sMi-X2aIG7gkph_Zi8tfEBQRpl80zESHPYH9R0X3_ZGBXHWqfrkAVWSlgaSMBGe/exec
+Biblioteca
+URL
+https://script.google.com/macros/library/d/14MYsnczfXy2MAbo7Mf5quTt116rkcLB7Fq6JyjpYA58337t0atNS4tFj/3
+
+Versión 3 del 26 sept 2026, 19:35
+ID de implementación
+AKfycbzo-sMi-X2aIG7gkph_Zi8tfEBQRpl80zESHPYH9R0X3_ZGBXHWqfrkAVWSlgaSMBGe
+Aplicación web
+URL
+https://script.google.com/macros/s/AKfycbzo-sMi-X2aIG7gkph_Zi8tfEBQRpl80zESHPYH9R0X3_ZGBXHWqfrkAVWSlgaSMBGe/exec
+Biblioteca
+URL
+https://script.google.com/macros/library/d/14MYsnczfXy2MAbo7Mf5quTt116rkcLB7Fq6JyjpYA58337t0atNS4tFj/4

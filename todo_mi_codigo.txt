@@ -1,0 +1,4486 @@
+==> app.js <==
+/**
+ * ==========================================================================
+ * Garden Can Torra (Fundat el 1948) - PWA
+ * Archivo principal: app.js
+ * 
+ * Funcionalidades clave:
+ * 1. Conexión real con Google Sheets vía fetch() para leer las 10 columnas.
+ * 2. Árbol de navegación estricto y dinámico multinivel (Categoría, Subcategoría, Subsección, Variedad).
+ * 3. Botones dinámicos de filtrado por 'Marca' basados en el Stock (con conteos y estado 'Agotado').
+ * 4. Validación estricta de Stock = 0 ('Agotado' / 'Esgotat').
+ * 5. Sistema multiidioma (Català / Español) y modo Claro/Oscuro.
+ * 6. Carrito de compra reactivo con reglas de envío (Terrassa y comarca, 48h).
+ * 7. Formulario interactivo de Endoterapia con carga y vista previa de imágenes.
+ * 8. Soporte PWA y modo Offline vía Service Worker (sw.js).
+ * ==========================================================================
+ */
+
+// ==========================================================================
+// CONFIGURACIÓN DE GOOGLE SHEETS
+// Pega aquí el enlace de tu hoja de cálculo publicada en formato CSV:
+// En Google Sheets: Fitxer > Compartir > Publicar a la web > Format: Valors separats per comes (.csv)
+// ==========================================================================
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/TU_ENLACE_AQUI/pub?output=csv";
+
+// Diccionario de Traducciones (Català / Español)
+const I18N = {
+  ca: {
+    tagline: "Des de 1948 • Qualitat & Tradició",
+    search_placeholder: "Cercar pinso, llavors, tests...",
+    nav_all: "Tots els productes",
+    nav_pets: "Mascotes",
+    nav_garden: "Hort i Jardí",
+    nav_food: "Alimentació km0",
+    nav_misc: "Miscel·lània",
+    nav_advice: "Assessorament Agrícola",
+    nav_endo: "Endoteràpia",
+    hero_title: "Tradició i assessorament al teu servei des de 1948",
+    hero_subtitle: "Especialistes en sanitat vegetal, nutrició animal i cultiu de proximitat a Terrassa i comarca.",
+    hero_advice_btn: "Assessorament Agrònom a Botiga",
+    filter_brand_title: "Filtrar per Marques:",
+    filter_only_instock: "Només marques amb estoc",
+    clear_filters: "Netejar filtres",
+    all_brands: "Totes les marques",
+    no_brands: "Cap marca disponible en aquesta secció",
+    no_products: "No s'ha trobat cap producte amb aquests criteris.",
+    cart_title: "La teva Cistella",
+    cart_empty: "La cistella està buida.",
+    cart_total: "Total a pagar:",
+    checkout_delivery_type: "Mètode d'entrega:",
+    delivery_pickup: "Recollida a botiga (Gratis)",
+    delivery_home: "Repartiment a domicili (48h)",
+    checkout_payment_type: "Forma de pagament:",
+    checkout_confirm_btn: "Finalitzar Comanda",
+    stock_out: "Agotado",
+    stock_out_ca: "Esgotat",
+    stock_available: "en estoc",
+    stock_add: "Afegir a la Cistella",
+    order_success: "Comanda rebuda correctament!",
+    subcat_all: "Tots",
+    subcat_all_in: "Tot a",
+    breadcrumb_catalog: "Catàleg General",
+    brands_count: "marques",
+    brand_count: "marca",
+    in_stock_units: "en estoc",
+    out_of_stock_tag: "Esgotat"
+  },
+  es: {
+    tagline: "Desde 1948 • Calidad & Tradición",
+    search_placeholder: "Buscar pienso, semillas, macetas...",
+    nav_all: "Todos los productos",
+    nav_pets: "Mascotas",
+    nav_garden: "Huerto y Jardín",
+    nav_food: "Alimentación km0",
+    nav_misc: "Miscelánea",
+    nav_advice: "Asesoramiento Agrícola",
+    nav_endo: "Endoterapia",
+    hero_title: "Tradición y asesoramiento a tu servicio desde 1948",
+    hero_subtitle: "Especialistas en sanidad vegetal, nutrición animal y cultivo de proximidad en Terrassa y comarca.",
+    hero_advice_btn: "Asesoramiento Agrónomo en Tienda",
+    filter_brand_title: "Filtrar por Marcas:",
+    filter_only_instock: "Solo marcas con stock",
+    clear_filters: "Limpiar filtros",
+    all_brands: "Todas las marcas",
+    no_brands: "Ninguna marca disponible en esta sección",
+    no_products: "No se encontró ningún producto con estos criterios.",
+    cart_title: "Tu Cesta de Compra",
+    cart_empty: "La cesta está vacía.",
+    cart_total: "Total a pagar:",
+    checkout_delivery_type: "Método de entrega:",
+    delivery_pickup: "Recogida en tienda (Gratis)",
+    delivery_home: "Reparto a domicilio (48h)",
+    checkout_payment_type: "Forma de pago:",
+    checkout_confirm_btn: "Finalizar Pedido",
+    stock_out: "Agotado",
+    stock_out_ca: "Agotado",
+    stock_available: "en stock",
+    stock_add: "Añadir al Carrito",
+    order_success: "¡Pedido recibido correctamente!",
+    subcat_all: "Todos",
+    subcat_all_in: "Todo en",
+    breadcrumb_catalog: "Catálogo General",
+    brands_count: "marcas",
+    brand_count: "marca",
+    in_stock_units: "en stock",
+    out_of_stock_tag: "Agotado"
+  }
+};
+
+/**
+ * ==========================================================================
+ * ÁRBOL ESTRICTO DE NAVEGACIÓN (según especificación estricta de SKILL.md)
+ * 
+ * 1. MASCOTAS:
+ *   1.1 Perro (Alimentación [Seca, Húmeda, Snacks], Paseo y Viaje, Higiene,
+ *              Descanso, Comederos, Juguetes, Varios)
+ *   1.2 Gato (Alimentación, Rascadores, Higiene y Arenas, Paseo, Juguetes, Varios)
+ *   1.3 Aves (Alimentación, Jaulas y Cuidado)
+ *   1.4 Roedores (Alimentación, Higiene, Equipamiento)
+ *   1.5 Peces (Alimentación)
+ *   1.6 Tortugas (Alimentación)
+ *   1.7 Granja (Alimentación, Equipamiento)
+ * 2. HUERTO Y JARDÍN:
+ *   Herramientas/Maquinaria, Macetas (Terracota, Plástico), Tierras y Nutrición,
+ *   Fitosanitarios (Insecticidas, Fungicidas, Herbicidas, Control Roedores, Trampas, Endoterapia),
+ *   Plantas/Cultivo (Semillas, Plantel), Mallas/Riego.
+ * 3. ALIMENTACIÓN: Consumo Humano/Proximidad.
+ * 4. MISCELÁNEA: Tapones de corcho, Varios.
+ * ==========================================================================
+ */
+const CATALOG_TREE = {
+  MASCOTAS: {
+    key: "MASCOTAS",
+    title_ca: "Mascotes",
+    title_es: "Mascotas",
+    icon: "🐶",
+    subcategories: {
+      "Perro": {
+        icon: "🐕",
+        title_ca: "Perro / Gossos",
+        title_es: "Perro",
+        items: {
+          "Alimentación": ["Seca", "Húmeda", "Snacks"],
+          "Paseo y Viaje": [],
+          "Higiene": [],
+          "Descanso": [],
+          "Comederos": [],
+          "Juguetes": [],
+          "Varios": []
+        }
+      },
+      "Gato": {
+        icon: "🐱",
+        title_ca: "Gato / Gats",
+        title_es: "Gato",
+        items: {
+          "Alimentación": [],
+          "Rascadores": [],
+          "Higiene y Arenas": [],
+          "Paseo": [],
+          "Juguetes": [],
+          "Varios": []
+        }
+      },
+      "Aves": {
+        icon: "🦜",
+        title_ca: "Aves / Ocells",
+        title_es: "Aves",
+        items: {
+          "Alimentación": [],
+          "Jaulas y Cuidado": []
+        }
+      },
+      "Roedores": {
+        icon: "🐹",
+        title_ca: "Roedores / Rosegadors",
+        title_es: "Roedores",
+        items: {
+          "Alimentación": [],
+          "Higiene": [],
+          "Equipamiento": []
+        }
+      },
+      "Peces": {
+        icon: "🐠",
+        title_ca: "Peces / Peixos",
+        title_es: "Peces",
+        items: {
+          "Alimentación": []
+        }
+      },
+      "Tortugas": {
+        icon: "🐢",
+        title_ca: "Tortugas / Tortugues",
+        title_es: "Tortugas",
+        items: {
+          "Alimentación": []
+        }
+      },
+      "Granja": {
+        icon: "🐔",
+        title_ca: "Granja",
+        title_es: "Granja",
+        items: {
+          "Alimentación": [],
+          "Equipamiento": []
+        }
+      }
+    }
+  },
+  HUERTO_JARDIN: {
+    key: "HUERTO_JARDIN",
+    title_ca: "Hort i Jardí",
+    title_es: "Huerto y Jardín",
+    icon: "🪴",
+    subcategories: {
+      "Herramientas/Maquinaria": {
+        icon: "🚜",
+        title_ca: "Eines / Maquinària",
+        title_es: "Herramientas/Maquinaria",
+        items: {}
+      },
+      "Macetas": {
+        icon: "🏺",
+        title_ca: "Tests / Macetas",
+        title_es: "Macetas",
+        items: {
+          "Terracota": [],
+          "Plástico": []
+        }
+      },
+      "Tierras y Nutrición": {
+        icon: "🌱",
+        title_ca: "Terres i Nutrició",
+        title_es: "Tierras y Nutrición",
+        items: {}
+      },
+      "Fitosanitarios": {
+        icon: "🧪",
+        title_ca: "Fitosanitaris",
+        title_es: "Fitosanitarios",
+        items: {
+          "Insecticidas": [],
+          "Fungicidas": [],
+          "Herbicidas": [],
+          "Control Roedores": [],
+          "Trampas": [],
+          "Endoterapia": []
+        }
+      },
+      "Plantas/Cultivo": {
+        icon: "🌿",
+        title_ca: "Plantes i Cultiu",
+        title_es: "Plantas/Cultivo",
+        items: {
+          "Semillas": [],
+          "Plantel": []
+        }
+      },
+      "Mallas/Riego": {
+        icon: "💧",
+        title_ca: "Malles i Reg",
+        title_es: "Mallas/Riego",
+        items: {}
+      }
+    }
+  },
+  ALIMENTACION: {
+    key: "ALIMENTACION",
+    title_ca: "Alimentació km0",
+    title_es: "Alimentación km0",
+    icon: "🍎",
+    subcategories: {
+      "Consumo Humano/Proximidad": {
+        icon: "🥖",
+        title_ca: "Consum Humà / Proximitat",
+        title_es: "Consumo Humano/Proximidad",
+        items: {}
+      }
+    }
+  },
+  MISCELANEA: {
+    key: "MISCELANEA",
+    title_ca: "Miscel·lània",
+    title_es: "Miscelánea",
+    icon: "🍾",
+    subcategories: {
+      "Tapones de corcho": {
+        icon: "🍾",
+        title_ca: "Taps de suro",
+        title_es: "Tapones de corcho",
+        items: {}
+      },
+      "Varios": {
+        icon: "📦",
+        title_ca: "Varis",
+        title_es: "Varios",
+        items: {}
+      }
+    }
+  }
+};
+
+/**
+ * Catálogo base de demostración completo que cubre todas las categorías,
+ * subcategorías y niveles profundos de la especificación, con variedad
+ * de marcas y validación de Stock = 0 (Agotado).
+ * Se utiliza cuando SHEET_URL aún no tiene un enlace publicado para que
+ * el usuario pueda explorar la experiencia completa de inmediato.
+ */
+const DEMO_PRODUCTS_TREE = [
+  // 1. MASCOTAS > Perro
+  {
+    Nombre: "Advance Dog Medium Adult amb Pollastre i Arròs 14kg",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Alimentación Seca",
+    Marca: "Advance",
+    Precio: 54.95,
+    Descripción: "Pinso súper prèmium d'alta digestibilitat amb immunoglobulines per a gossos adults de raça mitjana.",
+    SKU: "ADV-DOG-MED-14",
+    Código_de_Barras: "8410650152431",
+    Imagen: "https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=500&auto=format&fit=crop&q=60",
+    Stock: 15
+  },
+  {
+    Nombre: "Royal Canin Maxi Adult Wet Sobre Humit 140g",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Alimentación Húmeda",
+    Marca: "Royal Canin",
+    Precio: 2.15,
+    Descripción: "Paté sucós d'alta palatabilitat adaptat per a gossos adults de races grans. Reforça la salut articular.",
+    SKU: "RC-WET-MAXI-140",
+    Código_de_Barras: "3182550858129",
+    Imagen: "https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=500&auto=format&fit=crop&q=60",
+    Stock: 8
+  },
+  {
+    Nombre: "Brekkies Dental Bites Snack Cuidado Bucal",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Snacks",
+    Marca: "Brekkies",
+    Precio: 2.80,
+    Descripción: "Snack cruixent per a la higiene dental diària del gos. Controla la placa i el tosca dental.",
+    SKU: "BRK-DENT-01",
+    Código_de_Barras: "8410650109923",
+    Imagen: "https://images.unsplash.com/photo-1568640347023-a616a30bc3bd?w=500&auto=format&fit=crop&q=60",
+    Stock: 0 // AGOTADO (prueba de validación Stock = 0)
+  },
+  {
+    Nombre: "Corretja extensible Flexi New Classic Cinta 5m",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Paseo y Viaje",
+    Marca: "Flexi",
+    Precio: 18.90,
+    Descripción: "Corretja retràctil d'alta resistència fabricada a Alemanya, amb fre ràpid i empunyadura ergonòmica.",
+    SKU: "FLX-5M-CL",
+    Código_de_Barras: "4000498018309",
+    Imagen: "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500&auto=format&fit=crop&q=60",
+    Stock: 6
+  },
+  {
+    Nombre: "Xampú dermatològic bio Àloe Vera Caní 300ml",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Higiene",
+    Marca: "Menforsan",
+    Precio: 7.95,
+    Descripción: "Xampú natural pH equilibrat que hidrata, regenera i proporciona lluentor intensa al pelatge.",
+    SKU: "MNF-SHAMP-ALOE",
+    Código_de_Barras: "8414580001021",
+    Imagen: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?w=500&auto=format&fit=crop&q=60",
+    Stock: 10
+  },
+  {
+    Nombre: "Llit ortopèdic impermeable Memory Foam 85cm",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Descanso",
+    Marca: "Ferplast",
+    Precio: 42.50,
+    Descripción: "Matalàs ergonòmic visc elàstic desenfundable i rentable per a un descans articular òptim.",
+    SKU: "FRP-BED-MEM-85",
+    Código_de_Barras: "8010690098711",
+    Imagen: "https://images.unsplash.com/photo-1541599540903-216a46ca1dc0?w=500&auto=format&fit=crop&q=60",
+    Stock: 4
+  },
+  {
+    Nombre: "Menjador doble d'acer inoxidable amb base de fusta",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Comederos",
+    Marca: "Nayeco",
+    Precio: 19.95,
+    Descripción: "Bol doble higiènic extraïble de 900ml per bol amb base pesada antilliscant de fusta de bambú.",
+    SKU: "NAY-BOWL-WOOD",
+    Código_de_Barras: "8425838045129",
+    Imagen: "https://images.unsplash.com/photo-1597843797221-50d4f23b204e?w=500&auto=format&fit=crop&q=60",
+    Stock: 12
+  },
+  {
+    Nombre: "Joguina KONG Classic resistent vermell L",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Juguetes",
+    Marca: "KONG",
+    Precio: 14.50,
+    Descripción: "Joguina de cautxú natural rebotant i emplenable de premis. Estímul mental i masticatori certificat.",
+    SKU: "KONG-RED-L",
+    Código_de_Barras: "035585111046",
+    Imagen: "https://images.unsplash.com/photo-1535294435445-d7249524ef2e?w=500&auto=format&fit=crop&q=60",
+    Stock: 9
+  },
+  {
+    Nombre: "Placa identificativa metàl·lica gravada Can Torra",
+    Categoría: "Mascotas",
+    Subcategoría: "Perro - Varios",
+    Marca: "Can Torra",
+    Precio: 6.50,
+    Descripción: "Placa d'alumini anoditzat inoxidable amb gravat làser personalitzat de nom i telèfon.",
+    SKU: "CT-TAG-01",
+    Código_de_Barras: "8401948001019",
+    Imagen: "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=500&auto=format&fit=crop&q=60",
+    Stock: 25
+  },
+
+  // 1. MASCOTAS > Gato
+  {
+    Nombre: "Purina Pro Plan Sterilised Salmó 3kg",
+    Categoría: "Mascotas",
+    Subcategoría: "Gato - Alimentación",
+    Marca: "Pro Plan",
+    Precio: 29.95,
+    Descripción: "Fórmula científica Optisenses que manté la salut renal i controla el pes en felins esterilitzats.",
+    SKU: "PP-CAT-SALM-3",
+    Código_de_Barras: "7613035122119",
+    Imagen: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&auto=format&fit=crop&q=60",
+    Stock: 14
+  },
+  {
+    Nombre: "Rascador arbre felí amb torre i cova de peluix 120cm",
+    Categoría: "Mascotas",
+    Subcategoría: "Gato - Rascadores",
+    Marca: "Trixie",
+    Precio: 49.00,
+    Descripción: "Postes enrotllats de sisal natural resistents amb plataforma superior de descans i joguina penjant.",
+    SKU: "TRX-SCRATCH-120",
+    Código_de_Barras: "4011905445129",
+    Imagen: "https://images.unsplash.com/photo-1545249390-6bdfa286032f?w=500&auto=format&fit=crop&q=60",
+    Stock: 3
+  },
+  {
+    Nombre: "Sorra de bentonita blanca aglomerant 10L",
+    Categoría: "Mascotas",
+    Subcategoría: "Gato - Higiene y Arenas",
+    Marca: "Sanicat",
+    Precio: 11.50,
+    Descripción: "Sorra mineral de màxima aglomeració, 99.9% lliure de pols i amb control actiu d'olors d'oxigen.",
+    SKU: "SAN-SAND-10L",
+    Código_de_Barras: "8411514013412",
+    Imagen: "https://images.unsplash.com/photo-1574158622682-e40e69881006?w=500&auto=format&fit=crop&q=60",
+    Stock: 20
+  },
+  {
+    Nombre: "Arnés ajustable i corretja de passeig per a gats",
+    Categoría: "Mascotas",
+    Subcategoría: "Gato - Paseo",
+    Marca: "Trixie",
+    Precio: 9.90,
+    Descripción: "Set de niló transpirable amb tancaments de seguretat de clic per a passejos tranquils.",
+    SKU: "TRX-CAT-HARN",
+    Código_de_Barras: "4011905418819",
+    Imagen: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=500&auto=format&fit=crop&q=60",
+    Stock: 5
+  },
+  {
+    Nombre: "Canya telescòpica amb plomes i cascavell",
+    Categoría: "Mascotas",
+    Subcategoría: "Gato - Juguetes",
+    Marca: "Nayeco",
+    Precio: 4.50,
+    Descripción: "Estimula l'instint natural de caça amb plomes de colors naturals i nansa ergonòmica.",
+    SKU: "NAY-CAT-FEATHER",
+    Código_de_Barras: "8425838089123",
+    Imagen: "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?w=500&auto=format&fit=crop&q=60",
+    Stock: 0 // AGOTADO
+  },
+  {
+    Nombre: "Herba gatera Catnip ecològica en brot fresc Can Torra",
+    Categoría: "Mascotas",
+    Subcategoría: "Gato - Varios",
+    Marca: "Can Torra",
+    Precio: 3.20,
+    Descripción: "Test viu d'herba de blat ecològica cultivada a Terrassa per a la purga natural de boles de pèl.",
+    SKU: "CT-CATNIP-01",
+    Código_de_Barras: "8401948001026",
+    Imagen: "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=500&auto=format&fit=crop&q=60",
+    Stock: 18
+  },
+
+  // 1. MASCOTAS > Aves, Roedores, Peces, Tortugas, Granja
+  {
+    Nombre: "Barreja llavors selecció periquitos i canaris 1kg",
+    Categoría: "Mascotas",
+    Subcategoría: "Aves - Alimentación",
+    Marca: "Kiki",
+    Precio: 3.40,
+    Descripción: "Escaiola, mill groc, mill vermell i nègre enriquida amb grànuls vitamínics essencials.",
+    SKU: "KIK-BIRD-1KG",
+    Código_de_Barras: "8412853001019",
+    Imagen: "https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=500&auto=format&fit=crop&q=60",
+    Stock: 16
+  },
+  {
+    Nombre: "Gàbia Voltregà esmaltada blanca per a ocells petits",
+    Categoría: "Mascotas",
+    Subcategoría: "Aves - Jaulas y Cuidado",
+    Marca: "Voltregà",
+    Precio: 38.00,
+    Descripción: "Fabricada amb pintura epoxi atòxica sense plom. Inclou 2 menjadors i saltadors ergonòmics.",
+    SKU: "VOL-CAGE-614",
+    Código_de_Barras: "8429886001221",
+    Imagen: "https://images.unsplash.com/photo-1549608276-5786777e6587?w=500&auto=format&fit=crop&q=60",
+    Stock: 2
+  },
+  {
+    Nombre: "Fenc de muntanya amb flors de camamilla Cunipic 500g",
+    Categoría: "Mascotas",
+    Subcategoría: "Roedores - Alimentación",
+    Marca: "Cunipic",
+    Precio: 4.80,
+    Descripción: "Alt contingut en fibra insoluble essencial per a la motilitat digestiva i el desgast dental de conills.",
+    SKU: "CUN-HAY-500",
+    Código_de_Barras: "8437007274011",
+    Imagen: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=500&auto=format&fit=crop&q=60",
+    Stock: 22
+  },
+  {
+    Nombre: "Jaç vegetal biodegradable Chipsi Citrus 3.2kg",
+    Categoría: "Mascotas",
+    Subcategoría: "Roedores - Higiene",
+    Marca: "Chipsi",
+    Precio: 5.95,
+    Descripción: "Encenall de fusta tova desempolsada amb aroma suau de llimona per a hàmsters i conills.",
+    SKU: "CHP-LITT-32",
+    Código_de_Barras: "4002973000854",
+    Imagen: "https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=500&auto=format&fit=crop&q=60",
+    Stock: 15
+  },
+  {
+    Nombre: "Roda d'exercici silenciosa de fusta natural 20cm",
+    Categoría: "Mascotas",
+    Subcategoría: "Roedores - Equipamiento",
+    Marca: "Trixie",
+    Precio: 16.50,
+    Descripción: "Roda rodament de boles extra suau que protegeix la columna vertebral de rosegadors petits.",
+    SKU: "TRX-WHEEL-WOOD",
+    Código_de_Barras: "4011905609224",
+    Imagen: "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=500&auto=format&fit=crop&q=60",
+    Stock: 7
+  },
+  {
+    Nombre: "TetraMin Flakes Aliment complet peixos tropicals 250ml",
+    Categoría: "Mascotas",
+    Subcategoría: "Peces - Alimentación",
+    Marca: "Tetra",
+    Precio: 7.60,
+    Descripción: "Fórmula BioActive que reforça el sistema immunitari i la intensitat de color dels peixos d'aquari.",
+    SKU: "TET-MIN-250",
+    Código_de_Barras: "4004218726581",
+    Imagen: "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=500&auto=format&fit=crop&q=60",
+    Stock: 11
+  },
+  {
+    Nombre: "Gammarus i estics proteics per a tortugues d'aigua 500ml",
+    Categoría: "Mascotas",
+    Subcategoría: "Tortugas - Alimentación",
+    Marca: "Sera",
+    Precio: 8.90,
+    Descripción: "Aliment ric en calci i fòsfor que afavoreix el desenvolupament sa i fort de la closca.",
+    SKU: "SER-TURT-500",
+    Código_de_Barras: "4001942007123",
+    Imagen: "https://images.unsplash.com/photo-1437622368342-7a3d73a34c8f?w=500&auto=format&fit=crop&q=60",
+    Stock: 13
+  },
+  {
+    Nombre: "Pinso complet gallines ponedores en farina sac 25kg",
+    Categoría: "Mascotas",
+    Subcategoría: "Granja - Alimentación",
+    Marca: "Nanta",
+    Precio: 17.50,
+    Descripción: "Barreja equilibrada amb blat de moro partit, soia i carbonat càlcic per a ous de closca forta.",
+    SKU: "NAN-PONED-25KG",
+    Código_de_Barras: "8410948001019",
+    Imagen: "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=500&auto=format&fit=crop&q=60",
+    Stock: 30
+  },
+  {
+    Nombre: "Abeurador automàtic per a aus amb potes 10L Copele",
+    Categoría: "Mascotas",
+    Subcategoría: "Granja - Equipamiento",
+    Marca: "Copele",
+    Precio: 15.90,
+    Descripción: "Dipòsit de plàstic translúcid d'alta durabilitat que manté l'aigua neta i protegida de brutícia.",
+    SKU: "COP-WAT-10L",
+    Código_de_Barras: "8431029070512",
+    Imagen: "https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=500&auto=format&fit=crop&q=60",
+    Stock: 6
+  },
+
+  // 2. HUERTO Y JARDÍN
+  {
+    Nombre: "Tisores de podar professionals bypass forjades Bellota",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Herramientas/Maquinaria",
+    Marca: "Bellota",
+    Precio: 24.90,
+    Descripción: "Fulla d'acer temperat d'alta precisió per a poda de fruiters, vinya i branques verdes fins a 25mm.",
+    SKU: "BEL-PRUN-BYPASS",
+    Código_de_Barras: "8414299101021",
+    Imagen: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=500&auto=format&fit=crop&q=60",
+    Stock: 10
+  },
+  {
+    Nombre: "Motoaixada compacta de benzina 4T per a hort domèstic",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Herramientas/Maquinaria",
+    Marca: "Honda",
+    Precio: 495.00,
+    Descripción: "Motor 4 temps fiable i silenciós. Amplada de treball de 50cm per a cavar i preparar la terra.",
+    SKU: "HON-MOTO-FG201",
+    Código_de_Barras: "8435123456789",
+    Imagen: "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?w=500&auto=format&fit=crop&q=60",
+    Stock: 1
+  },
+  {
+    Nombre: "Test de fang terracota artesanal de Quart 35cm",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Macetas - Terracota",
+    Marca: "Ceràmica Can Torra",
+    Precio: 16.50,
+    Descripción: "Terracota porosa tradicional que garanteix una oxigenació òptima de les arrels i evita l'entollament.",
+    SKU: "CT-POT-TERRA-35",
+    Código_de_Barras: "8401948002016",
+    Imagen: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=500&auto=format&fit=crop&q=60",
+    Stock: 18
+  },
+  {
+    Nombre: "Jardinera rectangular d'autoreg antracita 60cm Deroma",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Macetas - Plástico",
+    Marca: "Deroma",
+    Precio: 14.80,
+    Descripción: "Polipropilè injectat resistent als raigs UV i a les gelades amb indicador de nivell d'aigua.",
+    SKU: "DER-PLANTER-60",
+    Código_de_Barras: "8008821034123",
+    Imagen: "https://images.unsplash.com/photo-1598880940371-c756e015fea1?w=500&auto=format&fit=crop&q=60",
+    Stock: 8
+  },
+  {
+    Nombre: "Test penjant decoratiu amb plat integrat 25cm",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Macetas - Plástico",
+    Marca: "Deroma",
+    Precio: 7.50,
+    Descripción: "Ideal per a plantes aromàtiques i flors de temporada a balcons i terrasses.",
+    SKU: "DER-HANG-25",
+    Código_de_Barras: "8008821098712",
+    Imagen: "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?w=500&auto=format&fit=crop&q=60",
+    Stock: 0 // AGOTADO
+  },
+  {
+    Nombre: "Substrat universal ecològic amb guano 50L Compo Sana",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Tierras y Nutrición",
+    Marca: "Compo",
+    Precio: 12.95,
+    Descripción: "Compost amb perlita volcànica i activador d'arrels Agrosil. Retenció hídrica perfecta per a hort i jardí.",
+    SKU: "CMP-SANA-50L",
+    Código_de_Barras: "8411056024128",
+    Imagen: "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=500&auto=format&fit=crop&q=60",
+    Stock: 40
+  },
+  {
+    Nombre: "Humus de cuc de terra 100% orgànic 20L Flower",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Tierras y Nutrición",
+    Marca: "Flower",
+    Precio: 9.80,
+    Descripción: "Abonament biològic pur que regenera la flora microbiana del sòl i potencia el gust de les hortalisses.",
+    SKU: "FLW-HUMUS-20L",
+    Código_de_Barras: "8426584501231",
+    Imagen: "https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=500&auto=format&fit=crop&q=60",
+    Stock: 25
+  },
+  {
+    Nombre: "Sabó potàssic pur insecticida ecològic 1L Flower",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Fitosanitarios - Insecticidas",
+    Marca: "Flower",
+    Precio: 8.95,
+    Descripción: "Netejador de melasses i tractament biodegradable molt eficaç contra pugó, cotxinilla i mosca blanca.",
+    SKU: "FLW-SABO-1L",
+    Código_de_Barras: "8426584204125",
+    Imagen: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=500&auto=format&fit=crop&q=60",
+    Stock: 15
+  },
+  {
+    Nombre: "Fungicida ecològic Coure i Sofre polivalent 500g Compo",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Fitosanitarios - Fungicidas",
+    Marca: "Compo",
+    Precio: 10.50,
+    Descripción: "Prevenció i cura del míldiu, oïdi, rovell i abonyegament en fruiters i tomaqueres.",
+    SKU: "CMP-FUNG-500",
+    Código_de_Barras: "8411056018912",
+    Imagen: "https://images.unsplash.com/photo-1590682680695-43b964a3ae17?w=500&auto=format&fit=crop&q=60",
+    Stock: 12
+  },
+  {
+    Nombre: "Herbicida natural d'àcid pelargònic d'acció ràpida 1L",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Fitosanitarios - Herbicidas",
+    Marca: "Neudorff",
+    Precio: 14.90,
+    Descripción: "Elimina males herbes i molsa en camins i vores en menys de 3 hores sense glifosat.",
+    SKU: "NEU-HERB-1L",
+    Código_de_Barras: "4005240003215",
+    Imagen: "https://images.unsplash.com/photo-1589923188900-85dae523342b?w=500&auto=format&fit=crop&q=60",
+    Stock: 7
+  },
+  {
+    Nombre: "Esquer fresc raticida autoritzat per a interiors i coberts 150g",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Fitosanitarios - Control Roedores",
+    Marca: "Massó",
+    Precio: 5.60,
+    Descripción: "Formatge en pasta d'alta apetència per al control segur de rosegadors en masies i coberts.",
+    SKU: "MAS-RAT-150G",
+    Código_de_Barras: "8413725008123",
+    Imagen: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60",
+    Stock: 10
+  },
+  {
+    Nombre: "Trampes cromàtiques grogues adhesives per a hort (Pack 10)",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Fitosanitarios - Trampas",
+    Marca: "Massó",
+    Precio: 6.90,
+    Descripción: "Monitoratge i captura massiva de mosca blanca, pugó i minador sense químics.",
+    SKU: "MAS-TRAP-10",
+    Código_de_Barras: "8413725019815",
+    Imagen: "https://images.unsplash.com/photo-1584473457406-6240486418e9?w=500&auto=format&fit=crop&q=60",
+    Stock: 20
+  },
+  {
+    Nombre: "Kit Professional d'Endoteràpia per a injecció vascular d'arbrat",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Fitosanitarios - Endoterapia",
+    Marca: "Fertinyect",
+    Precio: 32.00,
+    Descripción: "Dispositiu d'injecció a pressió constant per al tractament de processionària i morrut de palmera.",
+    SKU: "FERT-ENDO-KIT",
+    Código_de_Barras: "8436024410129",
+    Imagen: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=500&auto=format&fit=crop&q=60",
+    Stock: 5
+  },
+  {
+    Nombre: "Llavors de tomàquet Montserrat tradicional Can Torra",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Plantas/Cultivo - Semillas",
+    Marca: "Semillas Fitó",
+    Precio: 2.20,
+    Descripción: "Varietat autòctona catalana de fruit buit, dolç i de pell fina, insubstituïble per a farcir.",
+    SKU: "FIT-TOM-MONT",
+    Código_de_Barras: "8411985002131",
+    Imagen: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=500&auto=format&fit=crop&q=60",
+    Stock: 35
+  },
+  {
+    Nombre: "Plantel d'enciam llavorós del Vallès (safata 6 uts)",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Plantas/Cultivo - Plantel",
+    Marca: "Horta Can Torra",
+    Precio: 1.80,
+    Descripción: "Brot vigorós arrelat en turba negra, llest per a trasplantar a l'hort o taula de cultiu.",
+    SKU: "CT-PLANT-ENC",
+    Código_de_Barras: "8401948003013",
+    Imagen: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=60",
+    Stock: 50
+  },
+  {
+    Nombre: "Kit de reg gota a gota amb programador automàtic digital",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Mallas/Riego",
+    Marca: "Gardena",
+    Precio: 68.50,
+    Descripción: "Set complet per a 15 jardineres o solcs d'hort. Estalvia fins a un 70% d'aigua amb màxima eficiència.",
+    SKU: "GAR-DRIP-SET",
+    Código_de_Barras: "4078500018234",
+    Imagen: "https://images.unsplash.com/photo-1515150117381-80b6424f1b04?w=500&auto=format&fit=crop&q=60",
+    Stock: 9
+  },
+  {
+    Nombre: "Malla d'ombreig i ocultació verda 90% 2x10m",
+    Categoría: "Huerto y Jardín",
+    Subcategoría: "Mallas/Riego",
+    Marca: "Intermas",
+    Precio: 22.00,
+    Descripción: "Malla d'alta densitat teixida amb protecció UV per a tanques, porxos i hivernacles.",
+    SKU: "INT-NET-2X10",
+    Código_de_Barras: "8410782019451",
+    Imagen: "https://images.unsplash.com/photo-1584473457406-6240486418e9?w=500&auto=format&fit=crop&q=60",
+    Stock: 14
+  },
+
+  // 3. ALIMENTACIÓN (Consumo Humano / Proximidad km0)
+  {
+    Nombre: "Oli d'oliva verge extra arbequina de primera premsada 5L",
+    Categoría: "Alimentación",
+    Subcategoría: "Consumo Humano/Proximidad",
+    Marca: "Molí de Proximitat",
+    Precio: 46.50,
+    Descripción: "Extracció en fred de collita pròpia. Afruitat intens amb notes de tomaca i ametlla verda.",
+    SKU: "ALM-OLI-5L",
+    Código_de_Barras: "8401948004010",
+    Imagen: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&auto=format&fit=crop&q=60",
+    Stock: 20
+  },
+  {
+    Nombre: "Mel pura de romaní del massís de Sant Llorenç 1kg",
+    Categoría: "Alimentación",
+    Subcategoría: "Consumo Humano/Proximidad",
+    Marca: "Can Torra Mel",
+    Precio: 13.90,
+    Descripción: "Mel artesana crua, sense pasteuritzar, collida als ruscs del Parc Natural de Sant Llorenç del Munt.",
+    SKU: "CT-HONEY-1KG",
+    Código_de_Barras: "8401948004027",
+    Imagen: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=500&auto=format&fit=crop&q=60",
+    Stock: 15
+  },
+  {
+    Nombre: "Mongeta del Ganxet D.O.P. Vallès sac tela 1kg",
+    Categoría: "Alimentación",
+    Subcategoría: "Consumo Humano/Proximidad",
+    Marca: "Pagesia del Vallès",
+    Precio: 11.50,
+    Descripción: "Llegum tradicional del Vallès de pell imperceptible i textura extremadament cremosa.",
+    SKU: "VALL-GANX-1KG",
+    Código_de_Barras: "8401948004034",
+    Imagen: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=60",
+    Stock: 0 // AGOTADO
+  },
+
+  // 4. MISCELÁNEA
+  {
+    Nombre: "Bossa 100 taps de suro natural de primera qualitat 44x24",
+    Categoría: "Miscelánea",
+    Subcategoría: "Tapones de corcho",
+    Marca: "Corcho Can Torra",
+    Precio: 14.50,
+    Descripción: "Suro 100% natural de boscos catalans per a embotellar vi negre, blanc o licors tradicionals.",
+    SKU: "COR-CORK-100",
+    Código_de_Barras: "8401948005017",
+    Imagen: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=500&auto=format&fit=crop&q=60",
+    Stock: 30
+  },
+  {
+    Nombre: "Cordill de cànem natural per a entutorar bobina 200m",
+    Categoría: "Miscelánea",
+    Subcategoría: "Varios",
+    Marca: "Can Torra",
+    Precio: 4.20,
+    Descripción: "Fibra vegetal biodegradable resistent a la intempèrie per a lligar tomaqueres i fruiters.",
+    SKU: "CT-ROPE-200M",
+    Código_de_Barras: "8401948005024",
+    Imagen: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=500&auto=format&fit=crop&q=60",
+    Stock: 25
+  },
+  {
+    Nombre: "Garrafa de vidre tradicional amb cistella protectora 5L",
+    Categoría: "Miscelánea",
+    Subcategoría: "Varios",
+    Marca: "Garrafes Tradició",
+    Precio: 12.80,
+    Descripción: "Damasjana de vidre gruixut tradicional per a conservació de vi, oli o licors casolans.",
+    SKU: "GAR-GLASS-5L",
+    Código_de_Barras: "8401948005031",
+    Imagen: "https://images.unsplash.com/photo-1527061011665-3652c757a4d4?w=500&auto=format&fit=crop&q=60",
+    Stock: 8
+  }
+];
+
+/**
+ * ==========================================================================
+ * Clase controladora principal de Garden Can Torra (PWA)
+ * ==========================================================================
+ */
+class GardenCanTorraApp {
+  constructor() {
+    this.sheetUrl = (typeof SHEET_URL === 'string') ? SHEET_URL : '';
+    this.products = [];
+    this.filteredProducts = [];
+    this.cart = [];
+    
+    // Estados de navegación multinivel y filtros
+    this.currentLang = 'ca';
+    this.activeCategory = 'TODOS';
+    this.activeSubcategory = null;       // Nivel 2 (ej. Perro, Gato, Macetas...)
+    this.activeChildCategory = null;     // Nivel 3 (ej. Alimentación, Paseo, Terracota...)
+    this.activeDeepCategory = null;      // Nivel 4 (ej. Seca, Húmeda, Snacks)
+    this.activeBrand = null;             // Filtro de marca
+    this.onlyInStockBrands = false;      // Toggle para mostrar solo marcas con stock
+    this.searchTerm = '';
+    this.deliveryMethod = 'RECOGIDA';
+
+    // Inicializar la aplicación
+    this.init();
+  }
+
+  async init() {
+    // 1. Registro del Service Worker para soporte PWA y modo Offline
+    this.registerServiceWorker();
+
+    // 2. Detección de conectividad en tiempo real (Online / Offline)
+    this.setupConnectivityListeners();
+
+    // 3. Cargar preferencia de tema claro/oscuro
+    this.loadTheme();
+
+    // 4. Vincular eventos del DOM
+    this.bindEvents();
+
+    // 5. Cargar catálogo (Google Sheets real o catálogo demo completo)
+    await this.loadProductsFromGoogleSheets();
+  }
+
+  /**
+   * Registra el Service Worker de la PWA garantizando funcionamiento offline
+   */
+  registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
+          .then((registration) => {
+            console.log('[Garden Can Torra PWA] Service Worker registrat correctament amb abast:', registration.scope);
+          })
+          .catch((error) => {
+            console.warn('[Garden Can Torra PWA] Error en registrar el Service Worker:', error);
+          });
+      });
+    }
+  }
+
+  /**
+   * Monitoriza el estado de conexión para avisar al usuario si está en modo offline
+   */
+  setupConnectivityListeners() {
+    const showOfflineBadge = (isOffline) => {
+      let badge = document.getElementById('offlineStatusBadge');
+      if (isOffline) {
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.id = 'offlineStatusBadge';
+          badge.className = "fixed bottom-4 left-4 z-50 px-3.5 py-1.5 rounded-xl bg-amber-500 text-brand-earth font-black text-xs border-2 border-brand-earth shadow-lg flex items-center gap-2 cartoon-card";
+          badge.innerHTML = `<span>📡</span> <span>Mode fora de línia (Offline)</span>`;
+          document.body.appendChild(badge);
+        }
+      } else {
+        if (badge) {
+          badge.remove();
+        }
+      }
+    };
+
+    window.addEventListener('offline', () => showOfflineBadge(true));
+    window.addEventListener('online', () => {
+      showOfflineBadge(false);
+      this.loadProductsFromGoogleSheets();
+    });
+
+    if (!navigator.onLine) {
+      showOfflineBadge(true);
+    }
+  }
+
+  /**
+   * ========================================================================
+   * 1. CONEXIÓN REAL CON GOOGLE SHEETS USANDO FETCH()
+   * ========================================================================
+   * Descarga y procesa el CSV publicado de Google Sheets mapeando con precisión
+   * las 10 columnas del modelo de datos:
+   * Nombre, Categoría, Subcategoría, Marca, Precio, Descripción, SKU,
+   * Código de Barras, Imagen y Stock.
+   */
+  async loadProductsFromGoogleSheets() {
+    const productsGrid = document.getElementById('productsGrid');
+    const counter = document.getElementById('productCounter');
+
+    // 1. Validar si SHEET_URL está configurada con una URL real
+    const currentUrl = (this.sheetUrl || SHEET_URL || '').trim();
+    const isUrlConfigured = currentUrl !== '' && 
+      !currentUrl.includes("TU_ENLACE_AQUI") && 
+      !currentUrl.includes("PLACEHOLDER");
+
+    if (!isUrlConfigured) {
+      // Cargamos el catálogo demo para que el árbol y los filtros funcionen de inmediato
+      this.products = [...DEMO_PRODUCTS_TREE];
+      this.renderPendingSheetConfigBanner();
+      this.applyFilters();
+      return;
+    }
+
+    // 2. Estado de carga visual en el catálogo
+    if (productsGrid) {
+      productsGrid.innerHTML = `
+        <div class="col-span-full py-16 text-center text-zinc-500 dark:text-zinc-400">
+          <div class="text-4xl mb-3 animate-spin inline-block">🌱</div>
+          <h3 class="text-base font-black text-brand-earth dark:text-zinc-100 mb-1">
+            Connectant amb Google Sheets...
+          </h3>
+          <p class="text-xs text-zinc-400">Descarregant el catàleg en temps real mitjançant fetch().</p>
+        </div>`;
+    }
+
+    try {
+      // 3. Petición HTTP real vía fetch()
+      const response = await fetch(currentUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/csv, text/plain, */*'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const csvText = await response.text();
+      const parsedRows = this.parseCSV(csvText);
+
+      if (!parsedRows || parsedRows.length === 0) {
+        throw new Error("El document CSV obtingut està buit o no conté files de dades.");
+      }
+
+      // 4. Mapeo estricto de las 10 columnas requeridas
+      this.products = this.normalizeSheetData(parsedRows);
+      console.log(`[Garden Can Torra] S'han carregat amb èxit ${this.products.length} productes des de Google Sheets.`);
+
+      // Retirar el banner de configuración si existía
+      document.getElementById('sheetConfigBanner')?.remove();
+
+      // 5. Aplicar filtros y renderizar catálogo
+      this.applyFilters();
+
+    } catch (error) {
+      console.error("[Garden Can Torra - Error de connexió a Google Sheets]:", error);
+      // Cargar el catálogo demo de respaldo e informar del error
+      this.products = [...DEMO_PRODUCTS_TREE];
+      this.renderSheetConnectionError(error);
+      this.applyFilters();
+    }
+  }
+
+  /**
+   * Parsea el texto CSV obtenido vía fetch()
+   * Usa PapaParse si está cargado o fallback nativo JavaScript.
+   */
+  parseCSV(csvText) {
+    if (window.Papa && typeof window.Papa.parse === 'function') {
+      const parsed = window.Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false
+      });
+      return parsed.data || [];
+    }
+    return this.fallbackParseCSV(csvText);
+  }
+
+  /**
+   * Parser nativo de respaldo para CSV compatible con RFC 4180
+   */
+  fallbackParseCSV(text) {
+    const lines = [];
+    let row = [''];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i + 1];
+
+      if (c === '"') {
+        if (inQuotes && next === '"') {
+          row[row.length - 1] += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        row.push('');
+      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+        if (c === '\r' && next === '\n') i++;
+        if (row.length > 1 || row[0].trim() !== '') {
+          lines.push(row);
+        }
+        row = [''];
+      } else {
+        row[row.length - 1] += c;
+      }
+    }
+    if (row.length > 1 || row[0].trim() !== '') {
+      lines.push(row);
+    }
+
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].map(h => h.trim());
+    return lines.slice(1).map(lineCols => {
+      const obj = {};
+      headers.forEach((h, idx) => {
+        obj[h] = lineCols[idx] !== undefined ? lineCols[idx].trim() : '';
+      });
+      return obj;
+    });
+  }
+
+  /**
+   * Mapea y normaliza exactamente las 10 columnas obligatorias de Google Sheets:
+   * 1. Nombre
+   * 2. Categoría
+   * 3. Subcategoría
+   * 4. Marca
+   * 5. Precio
+   * 6. Descripción
+   * 7. SKU
+   * 8. Código de Barras
+   * 9. Imagen
+   * 10. Stock
+   */
+  normalizeSheetData(rawData) {
+    if (!Array.isArray(rawData)) return [];
+
+    return rawData
+      .filter(row => row && typeof row === 'object' && Object.values(row).some(v => v && String(v).trim().length > 0))
+      .map((item, index) => {
+        const getField = (aliases) => {
+          for (const alias of aliases) {
+            if (item[alias] !== undefined && item[alias] !== null) {
+              const val = String(item[alias]).trim();
+              if (val.length > 0) return val;
+            }
+          }
+          const keys = Object.keys(item);
+          const clean = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+          for (const alias of aliases) {
+            const targetClean = clean(alias);
+            const foundKey = keys.find(k => clean(k) === targetClean);
+            if (foundKey && item[foundKey] !== undefined && item[foundKey] !== null) {
+              const val = String(item[foundKey]).trim();
+              if (val.length > 0) return val;
+            }
+          }
+          return "";
+        };
+
+        const nombre = getField(["Nombre", "Producte", "Producto", "Name", "Article", "Articulo"]) || `Producte #${index + 1}`;
+        const categoria = getField(["Categoría", "Categoria", "Category"]) || "Miscelánea";
+        const subcategoria = getField(["Subcategoría", "Subcategoria", "Subcategory"]);
+        const marca = getField(["Marca", "Brand", "Fabricant", "Fabricante"]) || "Can Torra";
+
+        const rawPrecio = getField(["Precio", "Preu", "Price", "PVP"]);
+        const cleanPrecio = rawPrecio.replace(/[€$]/g, "").replace(",", ".").trim();
+        const parsedPrecio = parseFloat(cleanPrecio);
+        const precio = (!isNaN(parsedPrecio) && parsedPrecio >= 0) ? parsedPrecio : 0.0;
+
+        const descripcion = getField(["Descripción", "Descripcion", "Descripcio", "Description", "Detall"]);
+        const sku = getField(["SKU", "sku", "Referència", "Referencia", "Ref", "Id", "ID"]) || `SKU-${index + 1}`;
+        const codigoBarras = getField(["Código de Barras", "Codigo de Barras", "Código_de_Barras", "Codigo_de_Barras", "Codi de barres", "Barcode", "EAN"]) || "--";
+        const imagen = getField(["Imagen", "Foto", "Image", "URL", "Url", "Imatge", "Pic"]) || 
+          "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=500&auto=format&fit=crop&q=60";
+
+        const rawStock = getField(["Stock", "Estoc", "Existencias", "Quantitat", "Cantidad"]);
+        const parsedStock = parseInt(rawStock, 10);
+        const stock = (!isNaN(parsedStock) && parsedStock >= 0) ? parsedStock : 0;
+
+        return {
+          Nombre: nombre,
+          Categoría: categoria,
+          Subcategoría: subcategoria,
+          Marca: marca,
+          Precio: precio,
+          Descripción: descripcion,
+          SKU: sku,
+          Código_de_Barras: codigoBarras,
+          Imagen: imagen,
+          Stock: stock
+        };
+      });
+  }
+
+  /**
+   * Banner de configuración amigable que permite pegar el CSV en caliente
+   * mientras se muestra el catálogo de demostración para testear
+   */
+  renderPendingSheetConfigBanner() {
+    let existingBanner = document.getElementById('sheetConfigBanner');
+    if (existingBanner) return;
+
+    const catalogMain = document.getElementById('catalogContainer');
+    if (!catalogMain) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'sheetConfigBanner';
+    banner.className = "mb-6 p-4 bg-teal-50 dark:bg-zinc-800 rounded-2xl border-2 border-brand-turquoise cartoon-card shadow-sm";
+    banner.innerHTML = `
+      <div class="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-turquoise text-white flex items-center justify-center text-xl shrink-0 font-bold">
+            📊
+          </div>
+          <div>
+            <h4 class="font-black text-brand-earth dark:text-teal-300">
+              Connexió a Google Sheets preparada (Mode Demostració actiu)
+            </h4>
+            <p class="text-[11px] text-zinc-600 dark:text-zinc-300">
+              Estàs veient el catàleg complet de mostra amb totes les categories i marques. Pots enganxar el teu enllaç CSV per carregar dades reals:
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 w-full md:w-auto">
+          <input 
+            type="url" 
+            id="sheetUrlInputQuick" 
+            placeholder="Enllaç Google Sheets en format CSV..."
+            class="p-2 text-xs border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 font-mono flex-1 md:w-72"
+          />
+          <button 
+            type="button" 
+            id="btnConnectSheetQuick"
+            class="px-3.5 py-2 bg-brand-turquoise hover:bg-brand-turquoiseDark text-white font-black text-xs rounded-xl cartoon-card transition whitespace-nowrap"
+          >
+            Connectar
+          </button>
+        </div>
+      </div>
+    `;
+
+    catalogMain.insertBefore(banner, catalogMain.firstChild);
+
+    document.getElementById('btnConnectSheetQuick')?.addEventListener('click', () => {
+      const url = document.getElementById('sheetUrlInputQuick')?.value?.trim();
+      if (url) {
+        this.sheetUrl = url;
+        this.loadProductsFromGoogleSheets();
+      } else {
+        alert("Si us plau, enganxa un enllaç de Google Sheets publicat com a CSV.");
+      }
+    });
+  }
+
+  /**
+   * Notificación de error si la petición fetch() a Google Sheets falla
+   */
+  renderSheetConnectionError(error) {
+    let existingBanner = document.getElementById('sheetConfigBanner');
+    if (!existingBanner) {
+      this.renderPendingSheetConfigBanner();
+      existingBanner = document.getElementById('sheetConfigBanner');
+    }
+
+    if (existingBanner) {
+      existingBanner.className = "mb-6 p-4 bg-red-50 dark:bg-zinc-800 rounded-2xl border-2 border-red-500 cartoon-card shadow-sm";
+      existingBanner.innerHTML = `
+        <div class="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl select-none">⚠️</span>
+            <div>
+              <h4 class="font-black text-red-600 dark:text-red-400">
+                No s'ha pogut llegir el Google Sheets (${error?.message || 'Error de xarxa o CORS'})
+              </h4>
+              <p class="text-[11px] text-zinc-600 dark:text-zinc-300">
+                Mostrant catàleg de reserva. Assegura't de que el full estigui publicat com a <strong>Valors separats per comes (.csv)</strong> i sigui públic.
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            onclick="app.loadProductsFromGoogleSheets()"
+            class="px-4 py-1.5 bg-red-600 text-white font-black text-xs rounded-xl cartoon-card transition"
+          >
+            Reintentar
+          </button>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * ========================================================================
+   * 2. COINCIDENCIA MULTINIVEL DE CATEGORÍAS
+   * ========================================================================
+   */
+  matchesCategory(prod) {
+    if (this.activeCategory === 'TODOS') return true;
+
+    const catKey = this.activeCategory;
+    const prodCat = (prod.Categoría || '').toLowerCase();
+    const prodSub = (prod.Subcategoría || '').toLowerCase();
+    const prodNom = (prod.Nombre || '').toLowerCase();
+    const prodDesc = (prod.Descripción || '').toLowerCase();
+
+    // 1. Validación Nivel 1 (Categoría Principal)
+    let matchLevel1 = false;
+    if (catKey === 'MASCOTAS') {
+      matchLevel1 = prodCat.includes('mascota') || prodSub.includes('mascota') ||
+        ['perro', 'gos', 'gato', 'gat', 'ave', 'ocell', 'roedor', 'rosegador', 'pez', 'peix', 'tortuga', 'granja'].some(k => prodCat.includes(k) || prodSub.includes(k));
+    } else if (catKey === 'HUERTO_JARDIN') {
+      matchLevel1 = prodCat.includes('huerto') || prodCat.includes('jardin') || prodCat.includes('hort') || prodCat.includes('jardí') ||
+        prodSub.includes('huerto') || prodSub.includes('jardin') || prodSub.includes('hort') || prodSub.includes('jardí') ||
+        ['herramienta', 'eina', 'maceta', 'test', 'tierra', 'substrat', 'fitosanitari', 'planta', 'semilla', 'llavor', 'malla', 'riego', 'reg'].some(k => prodCat.includes(k) || prodSub.includes(k));
+    } else if (catKey === 'ALIMENTACION') {
+      matchLevel1 = prodCat.includes('aliment') || prodSub.includes('aliment') || prodCat.includes('consum') || prodSub.includes('consum') || prodCat.includes('km0');
+    } else if (catKey === 'MISCELANEA') {
+      matchLevel1 = prodCat.includes('miscel') || prodSub.includes('miscel') || prodCat.includes('corcho') || prodSub.includes('corcho') || prodCat.includes('suro') || prodSub.includes('suro');
+    }
+
+    if (!matchLevel1) return false;
+
+    // 2. Validación Nivel 2 (Subcategoría)
+    if (this.activeSubcategory) {
+      const sub = this.activeSubcategory.toLowerCase();
+      const cleanSub = sub.replace(/[^a-z0-9]/g, '');
+      const inSub = (prod.Subcategoría || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const inCat = (prod.Categoría || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const inNom = prodNom;
+
+      const matchesSub = inSub.includes(cleanSub) || inCat.includes(cleanSub) || 
+        (sub.includes('perro') && (inSub.includes('perro') || inSub.includes('gos') || inNom.includes('dog') || inNom.includes('gos') || inNom.includes('perro'))) ||
+        (sub.includes('gato') && (inSub.includes('gato') || inSub.includes('gat') || inNom.includes('cat') || inNom.includes('gat') || inNom.includes('gato'))) ||
+        (sub.includes('ave') && (inSub.includes('ave') || inSub.includes('ocell') || inNom.includes('canari') || inNom.includes('periquito'))) ||
+        (sub.includes('roedor') && (inSub.includes('roedor') || inSub.includes('rosegador') || inNom.includes('conill') || inNom.includes('hamster') || inNom.includes('fenc'))) ||
+        (sub.includes('peces') && (inSub.includes('pez') || inSub.includes('peix') || inNom.includes('peix') || inNom.includes('peces'))) ||
+        (sub.includes('tortuga') && (inSub.includes('tortuga') || inNom.includes('tortuga'))) ||
+        (sub.includes('granja') && (inSub.includes('granja') || inNom.includes('gallina') || inNom.includes('ponedora'))) ||
+        (sub.includes('herramienta') && (inSub.includes('herramienta') || inSub.includes('maquinaria') || inSub.includes('eina'))) ||
+        (sub.includes('maceta') && (inSub.includes('maceta') || inSub.includes('test') || inSub.includes('jardinera'))) ||
+        (sub.includes('tierra') && (inSub.includes('tierra') || inSub.includes('nutric') || inSub.includes('substrat') || inSub.includes('humus') || inSub.includes('adob'))) ||
+        (sub.includes('fitosanitario') && (inSub.includes('fitosanit') || inSub.includes('insecticida') || inSub.includes('fungicida') || inSub.includes('endoter'))) ||
+        (sub.includes('planta') && (inSub.includes('planta') || inSub.includes('cultiv') || inSub.includes('semilla') || inSub.includes('llavor') || inSub.includes('plantel'))) ||
+        (sub.includes('malla') && (inSub.includes('malla') || inSub.includes('riego') || inSub.includes('reg') || inSub.includes('goteo'))) ||
+        (sub.includes('consumo') && (inSub.includes('consum') || inSub.includes('proxim') || inCat.includes('aliment'))) ||
+        (sub.includes('tapones') && (inSub.includes('tapon') || inSub.includes('tap') || inSub.includes('corcho') || inSub.includes('suro'))) ||
+        (sub.includes('varios') && (inSub.includes('vari') || inCat.includes('miscel')));
+
+      if (!matchesSub) return false;
+    }
+
+    // 3. Validación Nivel 3 (Subsección profunda)
+    if (this.activeChildCategory) {
+      const child = this.activeChildCategory.toLowerCase();
+      const cleanChild = child.replace(/[^a-z0-9]/g, '');
+      const inSub = (prod.Subcategoría || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const matchesChild = inSub.includes(cleanChild) || prodNom.includes(child) || prodDesc.includes(child) ||
+        (child.includes('alimen') && (inSub.includes('alimen') || prodNom.includes('pinso') || prodNom.includes('pienso') || prodNom.includes('comida'))) ||
+        (child.includes('paseo') && (inSub.includes('paseo') || inSub.includes('viaje') || prodNom.includes('corretja') || prodNom.includes('arnés') || prodNom.includes('collar'))) ||
+        (child.includes('higien') && (inSub.includes('higien') || prodNom.includes('xampú') || prodNom.includes('champú') || prodNom.includes('sorra') || prodNom.includes('arena'))) ||
+        (child.includes('descanso') && (inSub.includes('descanso') || prodNom.includes('llit') || prodNom.includes('cama') || prodNom.includes('coixí'))) ||
+        (child.includes('comedero') && (inSub.includes('comedero') || prodNom.includes('menjador') || prodNom.includes('abeurador'))) ||
+        (child.includes('juguete') && (inSub.includes('juguete') || prodNom.includes('joguina') || prodNom.includes('kong') || prodNom.includes('pelota'))) ||
+        (child.includes('rascador') && (inSub.includes('rascador') || prodNom.includes('rascador'))) ||
+        (child.includes('jaula') && (inSub.includes('jaula') || inSub.includes('gàbia') || prodNom.includes('gàbia'))) ||
+        (child.includes('equipamiento') && (inSub.includes('equip') || prodNom.includes('roda') || prodNom.includes('abeurador'))) ||
+        (child.includes('terracota') && (inSub.includes('terracota') || prodNom.includes('fang') || prodNom.includes('barro') || prodNom.includes('terracota'))) ||
+        (child.includes('plástico') && (inSub.includes('plastic') || inSub.includes('plàstic') || prodNom.includes('plastico') || prodNom.includes('resina'))) ||
+        (child.includes('insecticida') && (inSub.includes('insecticida') || prodNom.includes('sabó potàssic') || prodNom.includes('pulgó'))) ||
+        (child.includes('fungicida') && (inSub.includes('fungicida') || prodNom.includes('coure') || prodNom.includes('sofre') || prodNom.includes('oïdi'))) ||
+        (child.includes('herbicida') && (inSub.includes('herbicida') || prodNom.includes('herbicida'))) ||
+        (child.includes('roedores') && (inSub.includes('roedor') || prodNom.includes('raticida') || prodNom.includes('ratol'))) ||
+        (child.includes('trampa') && (inSub.includes('trampa') || prodNom.includes('cromàtica') || prodNom.includes('feromona'))) ||
+        (child.includes('endoterapia') && (inSub.includes('endoter') || prodNom.includes('endoter') || prodDesc.includes('endoter'))) ||
+        (child.includes('semilla') && (inSub.includes('semilla') || inSub.includes('llavor') || prodNom.includes('llavor') || prodNom.includes('semilla'))) ||
+        (child.includes('plantel') && (inSub.includes('plantel') || prodNom.includes('plantel')));
+
+      if (!matchesChild) return false;
+    }
+
+    // 4. Validación Nivel 4 (Variedad específica, ej. Seca, Húmeda, Snacks)
+    if (this.activeDeepCategory) {
+      const deep = this.activeDeepCategory.toLowerCase();
+      const inSub = (prod.Subcategoría || '').toLowerCase();
+
+      const matchesDeep = inSub.includes(deep) || prodNom.includes(deep) || prodDesc.includes(deep) ||
+        (deep === 'seca' && (inSub.includes('seca') || prodNom.includes('sec') || prodNom.includes('croqueta') || prodNom.includes('adult') || prodNom.includes('puppy'))) ||
+        (deep === 'húmeda' && (inSub.includes('húmeda') || inSub.includes('humeda') || prodNom.includes('wet') || prodNom.includes('llauna') || prodNom.includes('lata') || prodNom.includes('paté') || prodNom.includes('sobres'))) ||
+        (deep === 'snacks' && (inSub.includes('snack') || prodNom.includes('snack') || prodNom.includes('bites') || prodNom.includes('premis') || prodNom.includes('golosina') || prodNom.includes('dental')));
+
+      if (!matchesDeep) return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * ========================================================================
+   * 3. LÓGICA DE FILTRADO GENERAL Y PRODUCTOS
+   * ========================================================================
+   */
+  applyFilters() {
+    this.filteredProducts = this.products.filter(prod => {
+      // 1. Coincidencia con la jerarquía de categorías
+      const matchCategory = this.matchesCategory(prod);
+
+      // 2. Filtro por 'Marca' seleccionada
+      const matchBrand = !this.activeBrand || (prod.Marca === this.activeBrand);
+
+      // 3. Filtro por Término de Búsqueda
+      const search = this.searchTerm.toLowerCase();
+      const matchSearch = !search || 
+        prod.Nombre.toLowerCase().includes(search) || 
+        (prod.Descripción || '').toLowerCase().includes(search) || 
+        (prod.Marca || '').toLowerCase().includes(search) ||
+        (prod.SKU || '').toLowerCase().includes(search);
+
+      return matchCategory && matchBrand && matchSearch;
+    });
+
+    // Renderizar botones dinámicos de marca y tarjetas del catálogo
+    this.renderBrandFilterButtons();
+    this.renderProducts();
+    this.updateCategoryHeaders();
+  }
+
+  /**
+   * ========================================================================
+   * 4. BOTONES DINÁMICOS DE FILTRADO POR 'MARCA' BASADOS EN EL STOCK
+   * ========================================================================
+   * - Lee la columna 'Marca' de los productos coincidentes.
+   * - Calcula unidades en stock y si la marca tiene stock disponible o está 'Agotado'.
+   * - Muestra etiquetas de stock y soporta el filtro "Només marques amb estoc".
+   */
+  renderBrandFilterButtons() {
+    const container = document.getElementById('brandFilterContainer');
+    const countBadge = document.getElementById('brandCountBadge');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // 1. Extraer marcas de los productos de la categoría activa (sin el filtro de marca)
+    const categoryProducts = this.products.filter(prod => {
+      const matchCat = this.matchesCategory(prod);
+      const search = this.searchTerm.toLowerCase();
+      const matchSearch = !search || 
+        prod.Nombre.toLowerCase().includes(search) || 
+        (prod.Descripción || '').toLowerCase().includes(search) || 
+        (prod.Marca || '').toLowerCase().includes(search) ||
+        (prod.SKU || '').toLowerCase().includes(search);
+
+      return matchCat && matchSearch;
+    });
+
+    // 2. Agrupar por Marca y calcular existencias de stock
+    const brandStatsMap = new Map();
+
+    categoryProducts.forEach(prod => {
+      const brandName = (prod.Marca || 'Can Torra').trim();
+      if (!brandName) return;
+
+      if (!brandStatsMap.has(brandName)) {
+        brandStatsMap.set(brandName, {
+          name: brandName,
+          totalStock: 0,
+          totalProducts: 0,
+          inStockProducts: 0
+        });
+      }
+
+      const stats = brandStatsMap.get(brandName);
+      stats.totalProducts += 1;
+      const stockVal = Math.max(0, parseInt(prod.Stock, 10) || 0);
+      stats.totalStock += stockVal;
+      if (stockVal > 0) {
+        stats.inStockProducts += 1;
+      }
+    });
+
+    let brandList = Array.from(brandStatsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+    // Si está marcado el toggle "Només marques amb estoc", excluir marcas con stock = 0
+    if (this.onlyInStockBrands) {
+      brandList = brandList.filter(b => b.totalStock > 0);
+    }
+
+    if (countBadge) {
+      const label = brandList.length === 1 ? I18N[this.currentLang].brand_count : I18N[this.currentLang].brands_count;
+      countBadge.textContent = `${brandList.length} ${label}`;
+    }
+
+    if (brandList.length === 0) {
+      container.innerHTML = `<span class="text-xs text-zinc-400 italic">${I18N[this.currentLang].no_brands}</span>`;
+      return;
+    }
+
+    // 3. Botón "Todas las marcas" / "Totes les marques"
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = `brand-filter-chip ${!this.activeBrand ? 'active' : ''}`;
+    allBtn.innerHTML = `
+      <span>${I18N[this.currentLang].all_brands}</span>
+      <span class="brand-stock-tag">${categoryProducts.length}</span>
+    `;
+    allBtn.onclick = () => {
+      this.activeBrand = null;
+      this.applyFilters();
+    };
+    container.appendChild(allBtn);
+
+    // 4. Botones dinámicos para cada marca con su indicador de stock
+    brandList.forEach(b => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      const isSelected = (this.activeBrand === b.name);
+      const hasStock = (b.totalStock > 0);
+
+      chip.className = `brand-filter-chip ${isSelected ? 'active' : ''} ${!hasStock ? 'out-of-stock-chip' : 'in-stock-chip'}`;
+      
+      if (hasStock) {
+        chip.innerHTML = `
+          <span>${b.name}</span>
+          <span class="brand-stock-tag" title="${b.totalStock} uts en estoc (${b.inStockProducts} productes)">
+            ${b.totalStock} ${I18N[this.currentLang].in_stock_units}
+          </span>
+        `;
+      } else {
+        chip.innerHTML = `
+          <span>${b.name}</span>
+          <span class="brand-out-tag" title="Tots els productes d'aquesta marca estan esgotats">
+            🚫 ${I18N[this.currentLang].out_of_stock_tag}
+          </span>
+        `;
+      }
+
+      chip.onclick = () => {
+        // Toggle: si ya estaba seleccionada se limpia, si no se activa
+        this.activeBrand = (this.activeBrand === b.name) ? null : b.name;
+        this.applyFilters();
+      };
+
+      container.appendChild(chip);
+    });
+  }
+
+  clearBrandFilter() {
+    this.activeBrand = null;
+    this.applyFilters();
+  }
+
+  /**
+   * ========================================================================
+   * 5. RENDERIZADO DEL CATÁLOGO Y VALIDACIÓN DE STOCK = 0 ('AGOTADO')
+   * ========================================================================
+   */
+  renderProducts() {
+    const grid = document.getElementById('productsGrid');
+    const counter = document.getElementById('productCounter');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    const totalCount = this.filteredProducts.length;
+
+    if (counter) {
+      counter.textContent = `${totalCount} ${totalCount === 1 ? 'producte' : 'productes'}`;
+    }
+
+    if (totalCount === 0) {
+      grid.innerHTML = `
+        <div class="col-span-full py-16 text-center text-zinc-400 dark:text-zinc-500">
+          <div class="text-6xl mb-3 select-none">🔍</div>
+          <h3 class="font-black text-lg text-brand-earth dark:text-zinc-200 mb-1">
+            ${I18N[this.currentLang].no_products}
+          </h3>
+          <p class="text-xs">Prova amb una altra categoria, marca o neteja els filtres.</p>
+        </div>
+      `;
+      return;
+    }
+
+    this.filteredProducts.forEach(prod => {
+      // VALIDACIÓN DE STOCK = 0: Si el Stock es 0, el botón cambia a 'Agotado'
+      const isOutOfStock = (prod.Stock <= 0);
+      const stockLabel = isOutOfStock 
+        ? I18N[this.currentLang].stock_out 
+        : `${prod.Stock} ${I18N[this.currentLang].stock_available}`;
+
+      const card = document.createElement('article');
+      card.className = "product-card cartoon-card";
+
+      card.innerHTML = `
+        <div>
+          <!-- Contenedor de Imagen con Insignia de Stock -->
+          <div class="product-image-container">
+            <img 
+              src="${prod.Imagen}" 
+              alt="${prod.Nombre}" 
+              class="product-image"
+              loading="lazy"
+              onerror="this.src='https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=500&auto=format&fit=crop&q=60'"
+            />
+            
+            <!-- Etiqueta de Marca -->
+            <span class="absolute bottom-2 left-2 bg-brand-earth/90 backdrop-blur-xs text-white text-[10px] font-black px-2 py-0.5 rounded-md border border-white/20">
+              ${prod.Marca}
+            </span>
+
+            <!-- Badge de Stock (En stock vs Agotado) -->
+            <span class="stock-badge ${isOutOfStock ? 'out-of-stock' : 'in-stock'}">
+              ${isOutOfStock ? `🚫 ${I18N[this.currentLang].stock_out}` : `✓ ${stockLabel}`}
+            </span>
+
+            <!-- Capa visual de Agotado si Stock = 0 -->
+            ${isOutOfStock ? `
+              <div class="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-2 text-center select-none">
+                <span class="text-2xl mb-0.5">🚫</span>
+                <span class="font-black text-xs uppercase tracking-widest bg-red-600 px-2 py-1 rounded-md border border-white/30">
+                  ${I18N[this.currentLang].stock_out}
+                </span>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Metadatos de Categoría / Subcategoría -->
+          <span class="product-brand">${prod.Subcategoría || prod.Categoría}</span>
+          
+          <!-- Título del producto -->
+          <h3 class="product-title" title="${prod.Nombre}">${prod.Nombre}</h3>
+          
+          <!-- Descripción -->
+          <p class="product-description">${prod.Descripción || 'Sense descripció disponible.'}</p>
+        </div>
+
+        <div>
+          <!-- Referencias técnicas (SKU y Código de barras) -->
+          <div class="product-meta">
+            <span>SKU: <strong class="text-zinc-700 dark:text-zinc-300">${prod.SKU}</strong></span>
+            <span>Codi: <strong class="text-zinc-700 dark:text-zinc-300">${prod.Código_de_Barras}</strong></span>
+          </div>
+
+          <!-- Precio y Botón de Compra con validación de Stock -->
+          <div class="flex items-center justify-between gap-3 pt-2">
+            <div class="product-price-container">
+              <span class="product-price">${prod.Precio.toFixed(2)}</span>
+              <span class="product-price-currency">€</span>
+            </div>
+
+            <!-- BOTÓN DE COMPRA: Deshabilitado si Stock = 0 ('Agotado') -->
+            <button 
+              type="button"
+              ${isOutOfStock ? 'disabled aria-disabled="true"' : ''}
+              data-sku="${prod.SKU}"
+              class="product-btn-add ${isOutOfStock ? 'out-of-stock' : ''}"
+              title="${isOutOfStock ? I18N[this.currentLang].stock_out : I18N[this.currentLang].stock_add}"
+            >
+              ${isOutOfStock 
+                ? `<span>🚫</span> <span>${I18N[this.currentLang].stock_out}</span>`
+                : `<span>🛒</span> <span>${I18N[this.currentLang].stock_add}</span>`
+              }
+            </button>
+          </div>
+        </div>
+      `;
+
+      if (!isOutOfStock) {
+        const btn = card.querySelector('.product-btn-add');
+        if (btn) {
+          btn.addEventListener('click', () => this.addToCart(prod.SKU));
+        }
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  /**
+   * ========================================================================
+   * 6. NAVEGACIÓN JERÁRQUICA DINÁMICA MULTINIVEL
+   * ========================================================================
+   */
+  setCategory(catKey) {
+    this.activeCategory = catKey;
+    this.activeSubcategory = null;
+    this.activeChildCategory = null;
+    this.activeDeepCategory = null;
+    this.activeBrand = null;
+
+    // Resaltar botón de la navbar principal
+    document.querySelectorAll('.nav-category-btn').forEach(btn => {
+      const match = (btn.getAttribute('data-category') === catKey);
+      btn.classList.toggle('active', match);
+    });
+
+    const subnav = document.getElementById('subcategoriesNav');
+    const subList = document.getElementById('subcategoriesList');
+    const deepNav = document.getElementById('deepSubcategoriesNav');
+    const tertiaryNav = document.getElementById('tertiarySubcategoriesNav');
+    const endoBanner = document.getElementById('endoQuickBanner');
+
+    if (deepNav) deepNav.classList.add('hidden');
+    if (tertiaryNav) tertiaryNav.classList.add('hidden');
+    if (endoBanner) endoBanner.classList.add('hidden');
+
+    // Renderizado dinámico del panel de Subcategorías (Nivel 2)
+    if (catKey !== 'TODOS' && CATALOG_TREE[catKey]) {
+      if (subnav && subList) {
+        subnav.classList.remove('hidden');
+        subList.innerHTML = '';
+
+        const catData = CATALOG_TREE[catKey];
+
+        // Botón "Tot en aquesta categoria"
+        const allBtn = document.createElement('button');
+        allBtn.type = 'button';
+        allBtn.className = `subcat-pill ${!this.activeSubcategory ? 'active' : ''}`;
+        allBtn.innerHTML = `<span>${catData.icon}</span> <span>${I18N[this.currentLang].subcat_all}</span>`;
+        allBtn.onclick = () => {
+          this.setSubcategory(null);
+        };
+        subList.appendChild(allBtn);
+
+        // Subcategorías de Nivel 2 (ej. Perro, Gato, Herramientas, Macetas...)
+        Object.entries(catData.subcategories).forEach(([subKey, subObj]) => {
+          const pill = document.createElement('button');
+          pill.type = 'button';
+          pill.className = `subcat-pill ${this.activeSubcategory === subKey ? 'active' : ''}`;
+          pill.innerHTML = `<span>${subObj.icon || '🏷️'}</span> <span>${subKey}</span>`;
+          pill.onclick = () => {
+            this.setSubcategory(subKey);
+          };
+          subList.appendChild(pill);
+        });
+      }
+    } else {
+      if (subnav) subnav.classList.add('hidden');
+    }
+
+    this.applyFilters();
+  }
+
+  setSubcategory(subKey) {
+    this.activeSubcategory = subKey;
+    this.activeChildCategory = null;
+    this.activeDeepCategory = null;
+    this.activeBrand = null;
+
+    // Actualizar clase activa en píldoras de Nivel 2
+    document.querySelectorAll('#subcategoriesList .subcat-pill').forEach(btn => {
+      const text = btn.textContent || '';
+      if (!subKey) {
+        btn.classList.toggle('active', text.includes(I18N[this.currentLang].subcat_all));
+      } else {
+        btn.classList.toggle('active', text.includes(subKey));
+      }
+    });
+
+    const deepNav = document.getElementById('deepSubcategoriesNav');
+    const deepList = document.getElementById('deepSubcategoriesList');
+    const tertiaryNav = document.getElementById('tertiarySubcategoriesNav');
+    const endoBanner = document.getElementById('endoQuickBanner');
+
+    if (tertiaryNav) tertiaryNav.classList.add('hidden');
+    if (endoBanner) endoBanner.classList.add('hidden');
+
+    // Renderizado dinámico de Subsecciones de Nivel 3
+    if (subKey && this.activeCategory !== 'TODOS') {
+      const catData = CATALOG_TREE[this.activeCategory];
+      const subObj = catData?.subcategories?.[subKey];
+
+      if (subObj && subObj.items && Object.keys(subObj.items).length > 0) {
+        if (deepNav && deepList) {
+          deepNav.classList.remove('hidden');
+          deepList.innerHTML = '';
+
+          // Botón "Tot a [Subcategoria]"
+          const allDeepBtn = document.createElement('button');
+          allDeepBtn.type = 'button';
+          allDeepBtn.className = `deep-subcat-pill ${!this.activeChildCategory ? 'active' : ''}`;
+          allDeepBtn.textContent = `${I18N[this.currentLang].subcat_all_in} ${subKey}`;
+          allDeepBtn.onclick = () => {
+            this.setChildCategory(null);
+          };
+          deepList.appendChild(allDeepBtn);
+
+          // Subcategorías de Nivel 3 (ej. Alimentación, Paseo, Terracota, Insecticidas...)
+          Object.keys(subObj.items).forEach(childKey => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = `deep-subcat-pill ${this.activeChildCategory === childKey ? 'active' : ''}`;
+            pill.textContent = childKey;
+            pill.onclick = () => {
+              this.setChildCategory(childKey);
+            };
+            deepList.appendChild(pill);
+          });
+        }
+      } else {
+        if (deepNav) deepNav.classList.add('hidden');
+      }
+    } else {
+      if (deepNav) deepNav.classList.add('hidden');
+    }
+
+    this.applyFilters();
+  }
+
+  setChildCategory(childKey) {
+    this.activeChildCategory = childKey;
+    this.activeDeepCategory = null;
+    this.activeBrand = null;
+
+    // Actualizar clase activa en píldoras de Nivel 3
+    document.querySelectorAll('#deepSubcategoriesList .deep-subcat-pill').forEach(btn => {
+      const text = btn.textContent || '';
+      if (!childKey) {
+        btn.classList.toggle('active', text.includes(I18N[this.currentLang].subcat_all_in));
+      } else {
+        btn.classList.toggle('active', text.trim() === childKey.trim());
+      }
+    });
+
+    const tertiaryNav = document.getElementById('tertiarySubcategoriesNav');
+    const tertiaryList = document.getElementById('tertiarySubcategoriesList');
+    const endoBanner = document.getElementById('endoQuickBanner');
+
+    // Banner contextual de Endoterapia
+    if (childKey === 'Endoterapia' || (this.activeSubcategory === 'Fitosanitarios' && childKey === 'Endoterapia')) {
+      if (endoBanner) endoBanner.classList.remove('hidden');
+    } else {
+      if (endoBanner) endoBanner.classList.add('hidden');
+    }
+
+    // Renderizado dinámico de Variedades de Nivel 4 (ej. Perro > Alimentación > [Seca, Húmeda, Snacks])
+    if (childKey && this.activeCategory && this.activeSubcategory) {
+      const catData = CATALOG_TREE[this.activeCategory];
+      const subObj = catData?.subcategories?.[this.activeSubcategory];
+      const deepArray = subObj?.items?.[childKey];
+
+      if (Array.isArray(deepArray) && deepArray.length > 0) {
+        if (tertiaryNav && tertiaryList) {
+          tertiaryNav.classList.remove('hidden');
+          tertiaryList.innerHTML = '';
+
+          // Botón "Tots"
+          const allTertiaryBtn = document.createElement('button');
+          allTertiaryBtn.type = 'button';
+          allTertiaryBtn.className = `tertiary-subcat-pill ${!this.activeDeepCategory ? 'active' : ''}`;
+          allTertiaryBtn.textContent = `${I18N[this.currentLang].subcat_all} ${childKey}`;
+          allTertiaryBtn.onclick = () => {
+            this.setDeepCategory(null);
+          };
+          tertiaryList.appendChild(allTertiaryBtn);
+
+          deepArray.forEach(deepKey => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = `tertiary-subcat-pill ${this.activeDeepCategory === deepKey ? 'active' : ''}`;
+            pill.textContent = deepKey;
+            pill.onclick = () => {
+              this.setDeepCategory(deepKey);
+            };
+            tertiaryList.appendChild(pill);
+          });
+        }
+      } else {
+        if (tertiaryNav) tertiaryNav.classList.add('hidden');
+      }
+    } else {
+      if (tertiaryNav) tertiaryNav.classList.add('hidden');
+    }
+
+    this.applyFilters();
+  }
+
+  setDeepCategory(deepKey) {
+    this.activeDeepCategory = deepKey;
+    this.activeBrand = null;
+
+    // Actualizar clase activa en píldoras de Nivel 4
+    document.querySelectorAll('#tertiarySubcategoriesList .tertiary-subcat-pill').forEach(btn => {
+      const text = btn.textContent || '';
+      if (!deepKey) {
+        btn.classList.toggle('active', text.includes(I18N[this.currentLang].subcat_all));
+      } else {
+        btn.classList.toggle('active', text.trim() === deepKey.trim());
+      }
+    });
+
+    this.applyFilters();
+  }
+
+  /**
+   * Actualiza el encabezado del catálogo y construye las migas de pan interactivas
+   */
+  updateCategoryHeaders() {
+    const titleEl = document.getElementById('currentCategoryViewTitle');
+    const breadcrumbsContainer = document.getElementById('catalogBreadcrumbs');
+
+    let currentTitle = I18N[this.currentLang].nav_all;
+
+    // Migas de pan interactivas
+    if (breadcrumbsContainer) {
+      breadcrumbsContainer.innerHTML = '';
+
+      // 1. Raíz: Catàleg General
+      const rootLink = document.createElement('span');
+      rootLink.className = "breadcrumb-link";
+      rootLink.textContent = I18N[this.currentLang].breadcrumb_catalog;
+      rootLink.onclick = () => this.setCategory('TODOS');
+      breadcrumbsContainer.appendChild(rootLink);
+
+      // 2. Nivel 1: Categoría Principal
+      if (this.activeCategory !== 'TODOS') {
+        const catConfig = CATALOG_TREE[this.activeCategory];
+        const localizedCat = catConfig ? (this.currentLang === 'ca' ? catConfig.title_ca : catConfig.title_es) : this.activeCategory;
+        currentTitle = localizedCat;
+
+        const sep1 = document.createElement('span');
+        sep1.className = "text-zinc-400";
+        sep1.textContent = "›";
+        breadcrumbsContainer.appendChild(sep1);
+
+        const catLink = document.createElement('span');
+        catLink.className = "breadcrumb-link";
+        catLink.textContent = localizedCat;
+        catLink.onclick = () => this.setCategory(this.activeCategory);
+        breadcrumbsContainer.appendChild(catLink);
+
+        // 3. Nivel 2: Subcategoría
+        if (this.activeSubcategory) {
+          currentTitle = `${this.activeSubcategory} (${localizedCat})`;
+
+          const sep2 = document.createElement('span');
+          sep2.className = "text-zinc-400";
+          sep2.textContent = "›";
+          breadcrumbsContainer.appendChild(sep2);
+
+          const subLink = document.createElement('span');
+          subLink.className = "breadcrumb-link";
+          subLink.textContent = this.activeSubcategory;
+          subLink.onclick = () => this.setSubcategory(this.activeSubcategory);
+          breadcrumbsContainer.appendChild(subLink);
+
+          // 4. Nivel 3: Subsección profunda
+          if (this.activeChildCategory) {
+            currentTitle = `${this.activeChildCategory} - ${this.activeSubcategory}`;
+
+            const sep3 = document.createElement('span');
+            sep3.className = "text-zinc-400";
+            sep3.textContent = "›";
+            breadcrumbsContainer.appendChild(sep3);
+
+            const childLink = document.createElement('span');
+            childLink.className = "breadcrumb-link";
+            childLink.textContent = this.activeChildCategory;
+            childLink.onclick = () => this.setChildCategory(this.activeChildCategory);
+            breadcrumbsContainer.appendChild(childLink);
+
+            // 5. Nivel 4: Variedad
+            if (this.activeDeepCategory) {
+              currentTitle = `${this.activeDeepCategory} (${this.activeChildCategory})`;
+
+              const sep4 = document.createElement('span');
+              sep4.className = "text-zinc-400";
+              sep4.textContent = "›";
+              breadcrumbsContainer.appendChild(sep4);
+
+              const deepSpan = document.createElement('span');
+              deepSpan.className = "text-brand-earth dark:text-zinc-200 font-bold";
+              deepSpan.textContent = this.activeDeepCategory;
+              breadcrumbsContainer.appendChild(deepSpan);
+            }
+          }
+        }
+      }
+
+      // Si hay filtro de marca activo
+      if (this.activeBrand) {
+        currentTitle += ` • ${this.activeBrand}`;
+        const brandBadge = document.createElement('span');
+        brandBadge.className = "ml-1 px-1.5 py-0.5 bg-brand-turquoise text-white text-[10px] rounded-md";
+        brandBadge.textContent = this.activeBrand;
+        breadcrumbsContainer.appendChild(brandBadge);
+      }
+    }
+
+    if (titleEl) titleEl.textContent = currentTitle;
+  }
+
+  /**
+   * ========================================================================
+   * 7. CARRITO DE COMPRA Y REGLAS DE REPARTO A DOMICILIO (48h)
+   * ========================================================================
+   */
+  addToCart(sku) {
+    const product = this.products.find(p => p.SKU === sku);
+    
+    // Validación estricta: No permitir compra de productos agotados
+    if (!product || product.Stock <= 0) {
+      alert(this.currentLang === 'ca' ? "Aquest producte està esgotat." : "Este producto está agotado.");
+      return;
+    }
+
+    const existing = this.cart.find(item => item.SKU === sku);
+    if (existing) {
+      if (existing.qty >= product.Stock) {
+        alert(this.currentLang === 'ca' 
+          ? `Estoc màxim assolit (${product.Stock} uts disponibles).` 
+          : `Stock máximo alcanzado (${product.Stock} uds disponibles).`);
+        return;
+      }
+      existing.qty += 1;
+    } else {
+      this.cart.push({ ...product, qty: 1 });
+    }
+
+    this.updateCartUI();
+    this.toggleCartModal(true);
+  }
+
+  changeQty(sku, delta) {
+    const item = this.cart.find(c => c.SKU === sku);
+    if (!item) return;
+
+    const originalProduct = this.products.find(p => p.SKU === sku);
+    const maxStock = originalProduct ? originalProduct.Stock : item.Stock;
+
+    if (delta > 0 && item.qty >= maxStock) {
+      alert(this.currentLang === 'ca' 
+        ? `No hi ha més unitats en estoc (Màxim: ${maxStock}).` 
+        : `No hay más unidades en stock (Máximo: ${maxStock}).`);
+      return;
+    }
+
+    item.qty += delta;
+    if (item.qty <= 0) {
+      this.cart = this.cart.filter(c => c.SKU !== sku);
+    }
+
+    this.updateCartUI();
+  }
+
+  removeFromCart(sku) {
+    this.cart = this.cart.filter(c => c.SKU !== sku);
+    this.updateCartUI();
+  }
+
+  updateCartUI() {
+    const badge = document.getElementById('cartCountBadge');
+    const list = document.getElementById('cartItemsList');
+    const subtotalEl = document.getElementById('cartSubtotalText');
+    const shippingEl = document.getElementById('cartShippingCostText');
+    const totalEl = document.getElementById('cartTotalText');
+    const progressTrack = document.getElementById('shippingProgressBar');
+    const progressText = document.getElementById('shippingProgressText');
+    const progressAmount = document.getElementById('shippingProgressAmount');
+
+    const totalUnits = this.cart.reduce((sum, item) => sum + item.qty, 0);
+    const subtotal = this.cart.reduce((sum, item) => sum + (item.qty * item.Precio), 0);
+
+    if (badge) badge.textContent = totalUnits;
+
+    // Reglas de Envío para Terrassa y zonas aledañas (48h)
+    const FREE_SHIPPING_LIMIT = 45.00;
+    const STANDARD_SHIPPING_FEE = 3.90;
+    
+    let shippingFee = 0.00;
+    if (this.deliveryMethod === 'DOMICILIO') {
+      shippingFee = subtotal >= FREE_SHIPPING_LIMIT ? 0.00 : STANDARD_SHIPPING_FEE;
+    }
+
+    const finalTotal = subtotal + shippingFee;
+
+    if (subtotalEl) subtotalEl.textContent = `${subtotal.toFixed(2)}€`;
+    if (shippingEl) {
+      if (this.deliveryMethod === 'RECOGIDA' || shippingFee === 0) {
+        shippingEl.textContent = 'Gratis';
+        shippingEl.className = "font-black text-emerald-600 dark:text-emerald-400";
+      } else {
+        shippingEl.textContent = `${shippingFee.toFixed(2)}€`;
+        shippingEl.className = "font-bold text-zinc-700 dark:text-zinc-300";
+      }
+    }
+    if (totalEl) totalEl.textContent = `${finalTotal.toFixed(2)}€`;
+
+    // Barra de progreso hacia envío gratis
+    if (progressTrack && progressText && progressAmount) {
+      const percentage = Math.min(100, Math.round((subtotal / FREE_SHIPPING_LIMIT) * 100));
+      progressTrack.style.width = `${percentage}%`;
+      progressAmount.textContent = `${subtotal.toFixed(2)}€ / ${FREE_SHIPPING_LIMIT.toFixed(2)}€`;
+
+      if (subtotal >= FREE_SHIPPING_LIMIT) {
+        progressText.textContent = this.currentLang === 'ca' 
+          ? "✓ Tens enviament GRATUÏT a domicili (48h)!" 
+          : "✓ ¡Tienes envío GRATUITO a domicilio (48h)!";
+      } else {
+        const remaining = (FREE_SHIPPING_LIMIT - subtotal).toFixed(2);
+        progressText.textContent = this.currentLang === 'ca'
+          ? `Afegeix ${remaining}€ per a enviament GRATUÏT a domicili`
+          : `Añade ${remaining}€ para envío GRATUITO a domicilio`;
+      }
+    }
+
+    if (!list) return;
+
+    if (this.cart.length === 0) {
+      list.innerHTML = `
+        <div class="py-8 text-center text-zinc-400">
+          <span class="text-3xl block mb-1">🛒</span>
+          <p class="font-bold text-xs">${I18N[this.currentLang].cart_empty}</p>
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = '';
+    this.cart.forEach(item => {
+      const originalProduct = this.products.find(p => p.SKU === item.SKU);
+      const isMax = originalProduct && item.qty >= originalProduct.Stock;
+
+      const row = document.createElement('div');
+      row.className = "py-3 flex items-center justify-between gap-3";
+      row.innerHTML = `
+        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+          <img 
+            src="${item.Imagen}" 
+            alt="${item.Nombre}" 
+            class="w-12 h-12 object-cover rounded-xl border border-brand-earth/20 shrink-0" 
+            onerror="this.src='https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=500&auto=format&fit=crop&q=60'"
+          />
+          <div class="min-w-0">
+            <h4 class="font-bold text-xs truncate text-brand-earth dark:text-zinc-200" title="${item.Nombre}">
+              ${item.Nombre}
+            </h4>
+            <div class="flex items-center gap-2 text-[11px]">
+              <span class="text-brand-turquoise font-black">${item.Precio.toFixed(2)}€</span>
+              <span class="text-zinc-400">Total: ${(item.Precio * item.qty).toFixed(2)}€</span>
+            </div>
+            ${isMax ? `<span class="text-[10px] text-amber-600 dark:text-amber-400 font-bold block">Màxim en estoc assolit</span>` : ''}
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg border border-zinc-300 dark:border-zinc-700">
+            <button type="button" class="w-6 h-6 rounded-md bg-white dark:bg-zinc-700 text-brand-earth dark:text-zinc-100 font-bold flex items-center justify-center hover:bg-zinc-200 transition" data-action="dec" data-sku="${item.SKU}">-</button>
+            <span class="text-xs font-black w-5 text-center">${item.qty}</span>
+            <button type="button" class="w-6 h-6 rounded-md bg-white dark:bg-zinc-700 text-brand-earth dark:text-zinc-100 font-bold flex items-center justify-center hover:bg-zinc-200 transition ${isMax ? 'opacity-40 cursor-not-allowed' : ''}" data-action="inc" data-sku="${item.SKU}">+</button>
+          </div>
+          
+          <button type="button" class="text-zinc-400 hover:text-red-500 p-1 transition" data-action="remove" data-sku="${item.SKU}" title="Eliminar producte">
+            🗑️
+          </button>
+        </div>
+      `;
+
+      row.querySelector('[data-action="dec"]').onclick = () => this.changeQty(item.SKU, -1);
+      row.querySelector('[data-action="inc"]').onclick = () => this.changeQty(item.SKU, 1);
+      row.querySelector('[data-action="remove"]').onclick = () => this.removeFromCart(item.SKU);
+      list.appendChild(row);
+    });
+  }
+
+  toggleCartModal(forceOpen = null) {
+    const modal = document.getElementById('cartModal');
+    if (!modal) return;
+    
+    if (forceOpen === true) {
+      modal.classList.remove('hidden');
+    } else if (forceOpen === false) {
+      modal.classList.add('hidden');
+    } else {
+      modal.classList.toggle('hidden');
+    }
+  }
+
+  setDeliveryMethod(method) {
+    this.deliveryMethod = method;
+    const btnP = document.getElementById('btnPickup');
+    const btnD = document.getElementById('btnDelivery');
+    const fields = document.getElementById('deliveryFields');
+
+    if (method === 'RECOGIDA') {
+      btnP?.classList.add('selected');
+      btnD?.classList.remove('selected');
+      fields?.classList.add('hidden');
+    } else {
+      btnD?.classList.add('selected');
+      btnP?.classList.remove('selected');
+      fields?.classList.remove('hidden');
+    }
+
+    this.updateCartUI();
+  }
+
+  setPaymentMethod(methodName) {
+    this.selectedPaymentMethod = methodName;
+    document.querySelectorAll('#paymentOptionsContainer .payment-option-card').forEach(card => {
+      const match = (card.getAttribute('data-payment') === methodName);
+      card.classList.toggle('selected', match);
+      const radio = card.querySelector('input[type="radio"]');
+      if (radio) radio.checked = match;
+    });
+  }
+
+  submitOrder() {
+    if (this.cart.length === 0) {
+      alert(this.currentLang === 'ca' ? "La cistella està buida!" : "¡La cesta está vacía!");
+      return;
+    }
+
+    const name = document.getElementById('checkoutName')?.value?.trim();
+    const phone = document.getElementById('checkoutPhone')?.value?.trim();
+    const email = document.getElementById('checkoutEmail')?.value?.trim();
+
+    if (!name || !phone || !email) {
+      alert(this.currentLang === 'ca' 
+        ? "Si us plau, omple les dades de contacte (Nom, Telèfon i Email)." 
+        : "Por favor, completa los datos de contacto (Nombre, Teléfono y Email).");
+      return;
+    }
+
+    let deliveryData = { 
+      method: this.deliveryMethod,
+      methodName: this.deliveryMethod === 'RECOGIDA' ? "Recollida a botiga física (Terrassa)" : "Repartiment a domicili (Màx 48h)"
+    };
+
+    if (this.deliveryMethod === 'DOMICILIO') {
+      const town = document.getElementById('checkoutTown')?.value;
+      const addr = document.getElementById('checkoutAddress')?.value?.trim();
+      const notes = document.getElementById('checkoutDeliveryNotes')?.value?.trim();
+      
+      if (!addr) {
+        alert(this.currentLang === 'ca' 
+          ? "Si us plau, indica l'adreça completa per al lliurament a domicili." 
+          : "Por favor, indica la dirección completa para la entrega a domicilio.");
+        return;
+      }
+
+      const allowedTowns = ['Terrassa', 'Viladecavalls', 'Vacarisses', 'Ullastrell', 'Matadepera', 'Rubí', 'Sabadell'];
+      if (!allowedTowns.includes(town)) {
+        alert(this.currentLang === 'ca'
+          ? "El nostre servei directe de repartiment només cobreix Terrassa i municipis limítrofs autoritzats."
+          : "Nuestro servicio directo de reparto solo cubre Terrassa y municipios limítrofes autorizados.");
+        return;
+      }
+
+      deliveryData.town = town;
+      deliveryData.address = addr;
+      deliveryData.notes = notes || "--";
+      deliveryData.maxDeliveryHours = 48;
+    }
+
+    const subtotal = this.cart.reduce((sum, item) => sum + (item.qty * item.Precio), 0);
+    const shippingFee = (this.deliveryMethod === 'DOMICILIO' && subtotal < 45.00) ? 3.90 : 0.00;
+    const finalTotal = subtotal + shippingFee;
+
+    const orderPayload = {
+      orderId: `GCT-${Date.now().toString().slice(-6)}`,
+      createdAt: new Date().toISOString(),
+      client: { name, phone, email },
+      delivery: deliveryData,
+      paymentMethod: this.selectedPaymentMethod || "Targeta (Visa / Mastercard)",
+      items: this.cart.map(c => ({
+        sku: c.SKU,
+        name: c.Nombre,
+        price: c.Precio,
+        qty: c.qty,
+        total: c.qty * c.Precio
+      })),
+      subtotal: subtotal,
+      shippingFee: shippingFee,
+      total: finalTotal
+    };
+
+    console.log("[EMAIL NOTIFICATION - Comanda Garden Can Torra]:", JSON.stringify(orderPayload, null, 2));
+
+    const activeView = document.getElementById('cartActiveView');
+    const successView = document.getElementById('cartSuccessView');
+    
+    if (activeView && successView) {
+      document.getElementById('orderSuccessId').textContent = `Ref: ${orderPayload.orderId}`;
+      document.getElementById('successClientName').textContent = `${name} (${phone})`;
+      document.getElementById('successDeliveryMethod').textContent = deliveryData.methodName + (deliveryData.town ? ` - ${deliveryData.town}` : '');
+      document.getElementById('successPaymentMethod').textContent = orderPayload.paymentMethod;
+      document.getElementById('successTotalText').textContent = `${finalTotal.toFixed(2)}€`;
+
+      activeView.classList.add('hidden');
+      successView.classList.remove('hidden');
+    }
+
+    this.cart = [];
+    const badge = document.getElementById('cartCountBadge');
+    if (badge) badge.textContent = "0";
+  }
+
+  resetCartView() {
+    const activeView = document.getElementById('cartActiveView');
+    const successView = document.getElementById('cartSuccessView');
+    if (activeView && successView) {
+      activeView.classList.remove('hidden');
+      successView.classList.add('hidden');
+    }
+    this.updateCartUI();
+  }
+
+  /**
+   * ========================================================================
+   * 8. FORMULARIO INTERACTIVO DE ENDOTERAPIA (SKILL.md punto 27)
+   * ========================================================================
+   */
+  initEndoterapia() {
+    const form = document.getElementById('formEndoterapia');
+    const qtyInput = document.getElementById('endoQuantity');
+    const btnInc = document.getElementById('btnIncEndoQty');
+    const btnDec = document.getElementById('btnDecEndoQty');
+    const treePills = document.getElementById('endoTreePills');
+    const treeTypeInput = document.getElementById('endoTreeType');
+    const dropzone = document.getElementById('endoDropzone');
+    const photoInput = document.getElementById('endoPhoto');
+    const previewContainer = document.getElementById('endoPhotoPreviewContainer');
+    const previewImg = document.getElementById('endoPhotoPreviewImg');
+    const promptBox = document.getElementById('endoUploadPrompt');
+    const btnRemovePhoto = document.getElementById('btnRemoveEndoPhoto');
+    const photoNameEl = document.getElementById('endoPhotoName');
+    const photoSizeEl = document.getElementById('endoPhotoSize');
+    const successView = document.getElementById('endoSuccessView');
+    const btnCloseSuccess = document.getElementById('btnCloseEndoSuccess');
+
+    btnInc?.addEventListener('click', () => {
+      let val = parseInt(qtyInput.value, 10) || 1;
+      qtyInput.value = val + 1;
+    });
+
+    btnDec?.addEventListener('click', () => {
+      let val = parseInt(qtyInput.value, 10) || 1;
+      if (val > 1) qtyInput.value = val - 1;
+    });
+
+    treePills?.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tree = btn.getAttribute('data-tree');
+        if (treeTypeInput && tree) {
+          treeTypeInput.value = tree;
+          treeTypeInput.focus();
+        }
+      });
+    });
+
+    dropzone?.addEventListener('click', (e) => {
+      if (e.target !== btnRemovePhoto && !btnRemovePhoto?.contains(e.target)) {
+        photoInput?.click();
+      }
+    });
+
+    dropzone?.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('border-brand-turquoiseDark', 'bg-teal-100');
+    });
+
+    dropzone?.addEventListener('dragleave', () => {
+      dropzone.classList.remove('border-brand-turquoiseDark', 'bg-teal-100');
+    });
+
+    dropzone?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-brand-turquoiseDark', 'bg-teal-100');
+      if (e.dataTransfer?.files?.length > 0) {
+        photoInput.files = e.dataTransfer.files;
+        handlePhotoFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    const handlePhotoFile = (file) => {
+      if (!file || !file.type.startsWith('image/')) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        if (previewImg) previewImg.src = evt.target.result;
+        if (photoNameEl) photoNameEl.textContent = file.name;
+        if (photoSizeEl) photoSizeEl.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+        
+        promptBox?.classList.add('hidden');
+        previewContainer?.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    };
+
+    photoInput?.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handlePhotoFile(e.target.files[0]);
+      }
+    });
+
+    btnRemovePhoto?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (photoInput) photoInput.value = '';
+      if (previewImg) previewImg.src = '';
+      previewContainer?.classList.add('hidden');
+      promptBox?.classList.remove('hidden');
+    });
+
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const treeType = treeTypeInput?.value?.trim();
+      const quantity = qtyInput?.value;
+      const perimeter = document.getElementById('endoPerimeter')?.value?.trim();
+      const name = document.getElementById('endoName')?.value?.trim();
+      const address = document.getElementById('endoAddress')?.value?.trim();
+      const phone = document.getElementById('endoPhone')?.value?.trim();
+
+      const requestPayload = {
+        requestId: `ENDO-${Date.now().toString().slice(-6)}`,
+        createdAt: new Date().toISOString(),
+        treeType,
+        quantity,
+        perimeter: `${perimeter} cm`,
+        client: { name, address, phone },
+        hasPhotoAttached: Boolean(photoInput?.files?.length > 0)
+      };
+
+      console.log("[SOL·LICITUD D'ENDOTERÀPIA - Tècnics Can Torra]:", requestPayload);
+
+      if (successView && form) {
+        document.getElementById('endoSuccessRef').textContent = `Expedient: ${requestPayload.requestId}`;
+        document.getElementById('endoSuccessTree').textContent = treeType;
+        document.getElementById('endoSuccessQty').textContent = `${quantity} arbre(s)`;
+        document.getElementById('endoSuccessPerimeter').textContent = `${perimeter} cm (aprox)`;
+        document.getElementById('endoSuccessContact').textContent = `${name} (${phone})`;
+
+        form.classList.add('hidden');
+        successView.classList.remove('hidden');
+      }
+    });
+
+    btnCloseSuccess?.addEventListener('click', () => {
+      form?.reset();
+      btnRemovePhoto?.click();
+      form?.classList.remove('hidden');
+      successView?.classList.add('hidden');
+      this.closeModal('modalEndoterapia');
+    });
+  }
+
+  /**
+   * ========================================================================
+   * 9. IDIOMA, TEMA Y MODALES
+   * ========================================================================
+   */
+  changeLanguage(lang) {
+    if (!I18N[lang]) return;
+    this.currentLang = lang;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (I18N[lang][key]) {
+        el.textContent = I18N[lang][key];
+      }
+    });
+
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      const key = el.getAttribute('data-i18n-placeholder');
+      if (I18N[lang][key]) {
+        el.placeholder = I18N[lang][key];
+      }
+    });
+
+    // Actualizar submenús dinámicos en el nuevo idioma
+    this.setCategory(this.activeCategory);
+    this.updateCartUI();
+  }
+
+  toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('canTorra_theme', isDark ? 'dark' : 'light');
+    const icon = document.getElementById('themeIcon');
+    if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+  }
+
+  loadTheme() {
+    const saved = localStorage.getItem('canTorra_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = (saved === 'dark') || (!saved && prefersDark);
+
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      const icon = document.getElementById('themeIcon');
+      if (icon) icon.textContent = '☀️';
+    }
+  }
+
+  openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('hidden');
+  }
+
+  /**
+   * ========================================================================
+   * 10. VINCULACIÓN DE EVENTOS DEL DOM
+   * ========================================================================
+   */
+  bindEvents() {
+    // Inicializar lógica de Endoterapia
+    this.initEndoterapia();
+
+    // Logo interactivo
+    document.getElementById('brandLogo')?.addEventListener('click', () => {
+      this.setCategory('TODOS');
+    });
+
+    // Búsqueda en vivo
+    const handleSearch = (val) => {
+      this.searchTerm = val.trim();
+      this.applyFilters();
+    };
+
+    document.getElementById('searchInput')?.addEventListener('input', (e) => handleSearch(e.target.value));
+    document.getElementById('searchInputMobile')?.addEventListener('input', (e) => handleSearch(e.target.value));
+
+    // Idioma
+    document.getElementById('langSelect')?.addEventListener('change', (e) => {
+      this.changeLanguage(e.target.value);
+    });
+
+    // Tema
+    document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
+      this.toggleTheme();
+    });
+
+    // Carrito
+    document.getElementById('cartBtn')?.addEventListener('click', () => {
+      this.resetCartView();
+      this.toggleCartModal(true);
+    });
+    document.getElementById('btnCloseCartModal')?.addEventListener('click', () => this.toggleCartModal(false));
+    document.getElementById('btnPickup')?.addEventListener('click', () => this.setDeliveryMethod('RECOGIDA'));
+    document.getElementById('btnDelivery')?.addEventListener('click', () => this.setDeliveryMethod('DOMICILIO'));
+    document.getElementById('btnCheckoutSubmit')?.addEventListener('click', () => this.submitOrder());
+    document.getElementById('btnContinueShopping')?.addEventListener('click', () => {
+      this.resetCartView();
+      this.toggleCartModal(false);
+    });
+
+    // Formas de pago
+    document.querySelectorAll('#paymentOptionsContainer .payment-option-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const payment = card.getAttribute('data-payment');
+        if (payment) this.setPaymentMethod(payment);
+      });
+    });
+
+    // Categorías principales de la Navbar
+    document.getElementById('navCategoryAll')?.addEventListener('click', () => this.setCategory('TODOS'));
+    document.getElementById('navCategoryMascotas')?.addEventListener('click', () => this.setCategory('MASCOTAS'));
+    document.getElementById('navCategoryHuerto')?.addEventListener('click', () => this.setCategory('HUERTO_JARDIN'));
+    document.getElementById('navCategoryAlimentacion')?.addEventListener('click', () => this.setCategory('ALIMENTACION'));
+    document.getElementById('navCategoryMiscelanea')?.addEventListener('click', () => this.setCategory('MISCELANEA'));
+
+    // Botón cerrar submenús
+    document.getElementById('btnCloseSubcategories')?.addEventListener('click', () => {
+      document.getElementById('subcategoriesNav')?.classList.add('hidden');
+    });
+
+    // Toggle de marcas con stock
+    const stockToggle = document.getElementById('toggleOnlyInStockBrands');
+    stockToggle?.addEventListener('change', (e) => {
+      this.onlyInStockBrands = Boolean(e.target.checked);
+      this.renderBrandFilterButtons();
+    });
+
+    // Limpiar filtro de marcas
+    document.getElementById('clearBrandFilterBtn')?.addEventListener('click', () => {
+      this.clearBrandFilter();
+    });
+
+    // Botón directo desde el banner de Endoterapia
+    document.getElementById('btnOpenEndoFromBanner')?.addEventListener('click', () => {
+      this.openModal('modalEndoterapia');
+    });
+
+    // Asesoramiento Agrícola y Endoterapia
+    document.getElementById('btnNavAsesoramiento')?.addEventListener('click', () => this.openModal('modalAsesoramiento'));
+    document.getElementById('heroAdviceBtn')?.addEventListener('click', () => this.openModal('modalAsesoramiento'));
+    document.getElementById('btnCloseAsesoramientoModal')?.addEventListener('click', () => this.closeModal('modalAsesoramiento'));
+
+    document.getElementById('btnNavEndoterapia')?.addEventListener('click', () => this.openModal('modalEndoterapia'));
+    document.getElementById('btnCloseEndoterapiaModal')?.addEventListener('click', () => this.closeModal('modalEndoterapia'));
+  }
+}
+
+// Iniciar Singleton global al cargar el DOM
+let app;
+document.addEventListener('DOMContentLoaded', () => {
+  app = new GardenCanTorraApp();
+});
+
+==> index.html <==
+<!DOCTYPE html>
+<html lang="ca" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garden Can Torra (Fundat el 1948) | PWA</title>
+  
+  <!-- Configuración PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#00A896" />
+  <meta name="description" content="Garden Can Torra - La teva botiga d'hort, jardí, mascotes i alimentació de proximitat des de 1948" />
+
+  <!-- Google Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              turquoise: '#00A896',
+              turquoiseDark: '#028090',
+              earth: '#3B2F2F',
+              earthDark: '#2D221E',
+              earthLight: '#654E4E',
+              warmBg: '#F8F9FA'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- PapaParse CDN para procesamiento de Google Sheets CSV -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <!-- Estilos personalizados vinculados -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Script principal de la aplicación vinculado -->
+  <script src="app.js" defer></script>
+</head>
+<body class="min-h-full flex flex-col bg-brand-warmBg dark:bg-zinc-900 text-brand-earth dark:text-zinc-100 font-sans transition-colors duration-200">
+
+  <!-- ========================================================================
+       1. NAVBAR PRINCIPAL
+       ======================================================================== -->
+  <header class="sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b-2 border-brand-earth dark:border-brand-turquoise">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      
+      <!-- Logotipo e Identidad Corporativa -->
+      <div class="flex items-center gap-3 cursor-pointer select-none" id="brandLogo">
+        <div class="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-brand-turquoise flex items-center justify-center text-2xl md:text-3xl shadow-inner border-2 border-brand-earth">
+          🌱
+        </div>
+        <div>
+          <h1 class="text-lg md:text-2xl font-black tracking-tight leading-none text-brand-earth dark:text-brand-turquoise">
+            GARDEN CAN TORRA
+          </h1>
+          <span class="text-[10px] md:text-xs font-bold uppercase tracking-wider text-brand-turquoise dark:text-zinc-400" data-i18n="tagline">
+            Des de 1948 • Qualitat &amp; Tradició
+          </span>
+        </div>
+      </div>
+
+      <!-- Barra de Búsqueda -->
+      <div class="hidden md:flex flex-1 max-w-md mx-4">
+        <div class="relative w-full">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Cercar pinso, llavors, tests..." 
+            data-i18n-placeholder="search_placeholder"
+            class="w-full pl-4 pr-10 py-2 rounded-xl border-2 border-brand-earth dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:border-brand-turquoise font-medium text-sm transition"
+          />
+          <span class="absolute right-3 top-2.5 text-lg select-none">🔍</span>
+        </div>
+      </div>
+
+      <!-- Ajustes: Selector de Idioma, Interruptor de Tema y Carrito -->
+      <div class="flex items-center gap-2">
+        
+        <!-- Selector de Idioma (Català / Español) -->
+        <div class="relative">
+          <select 
+            id="langSelect" 
+            aria-label="Selector de idioma"
+            class="bg-zinc-100 dark:bg-zinc-800 font-bold border-2 border-brand-earth dark:border-zinc-700 text-xs rounded-xl px-2 py-2 cursor-pointer focus:outline-none focus:border-brand-turquoise transition"
+          >
+            <option value="ca" selected>CAT 🏴</option>
+            <option value="es">ESP 🇪🇸</option>
+          </select>
+        </div>
+
+        <!-- Interruptor de Tema (Claro / Oscuro) -->
+        <button 
+          id="themeToggleBtn" 
+          type="button" 
+          aria-label="Canviar Tema Clar/Fosc" 
+          title="Canviar Tema"
+          class="p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:scale-105 transition"
+        >
+          <span id="themeIcon" class="text-base select-none">🌙</span>
+        </button>
+
+        <!-- Botón de Carrito de Compra -->
+        <button 
+          id="cartBtn" 
+          type="button" 
+          aria-label="Veure cistella de compra"
+          class="relative p-2 px-3 border-2 border-brand-earth dark:border-brand-turquoise rounded-xl bg-brand-turquoise text-white font-bold flex items-center gap-2 hover:bg-brand-turquoiseDark transition shadow cartoon-card"
+        >
+          <span class="text-base select-none">🛒</span>
+          <span 
+            id="cartCountBadge" 
+            class="bg-white text-brand-earth text-xs font-black rounded-full px-2 py-0.5 border border-brand-earth"
+          >
+            0
+          </span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Barra de Búsqueda Móvil -->
+    <div class="px-4 pb-3 md:hidden">
+      <div class="relative w-full">
+        <input 
+          type="text" 
+          id="searchInputMobile" 
+          placeholder="Cercar productes..." 
+          data-i18n-placeholder="search_placeholder"
+          class="w-full pl-4 pr-10 py-2 rounded-xl border-2 border-brand-earth dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:border-brand-turquoise font-medium text-sm"
+        />
+        <span class="absolute right-3 top-2 text-base select-none">🔍</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       2. MENÚ DE NAVEGACIÓN ESTRICTO (4 CATEGORÍAS PRINCIPALES)
+       Jerarquía estricta según especificación:
+       1. MASCOTAS
+       2. HUERTO Y JARDÍN
+       3. ALIMENTACIÓN
+       4. MISCELÁNEA
+       + Acceso a Todo el Catálogo, Asesoramiento Agrícola y Endoterapia
+       ======================================================================== -->
+  <nav class="bg-brand-turquoise text-white font-bold text-sm shadow-md sticky top-[69px] md:top-[74px] z-30 overflow-x-auto" aria-label="Navegación por categorías">
+    <div class="max-w-7xl mx-auto px-4 flex items-center space-x-1 py-1.5 scrollbar-none whitespace-nowrap">
+      
+      <!-- Catálogo Completo -->
+      <button 
+        id="navCategoryAll" 
+        type="button"
+        class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+        data-category="TODOS"
+      >
+        <span>✨</span>
+        <span data-i18n="nav_all">Tots els productes</span>
+      </button>
+
+      <!-- Categoría 1: MASCOTAS -->
+      <div class="relative group">
+        <button 
+          id="navCategoryMascotas" 
+          type="button"
+          class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+          data-category="MASCOTAS"
+        >
+          <span>🐶</span>
+          <span data-i18n="nav_pets">Mascotes</span>
+          <span class="text-xs opacity-75">▾</span>
+        </button>
+      </div>
+
+      <!-- Categoría 2: HUERTO Y JARDÍN -->
+      <div class="relative group">
+        <button 
+          id="navCategoryHuerto" 
+          type="button"
+          class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+          data-category="HUERTO_JARDIN"
+        >
+          <span>🪴</span>
+          <span data-i18n="nav_garden">Hort i Jardí</span>
+          <span class="text-xs opacity-75">▾</span>
+        </button>
+      </div>
+
+      <!-- Categoría 3: ALIMENTACIÓN (Consumo Humano / Proximidad) -->
+      <button 
+        id="navCategoryAlimentacion" 
+        type="button"
+        class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+        data-category="ALIMENTACION"
+      >
+        <span>🍎</span>
+        <span data-i18n="nav_food">Alimentació km0</span>
+      </button>
+
+      <!-- Categoría 4: MISCELÁNEA (Tapones de corcho, Varios) -->
+      <button 
+        id="navCategoryMiscelanea" 
+        type="button"
+        class="nav-category-btn px-3 py-1.5 rounded-lg hover:bg-white/20 transition flex items-center gap-1.5"
+        data-category="MISCELANEA"
+      >
+        <span>🍾</span>
+        <span data-i18n="nav_misc">Miscel·lània</span>
+      </button>
+
+      <!-- Acciones Especiales: Asesoramiento Agrícola y Endoterapia -->
+      <div class="flex items-center gap-1.5 ml-auto pl-4">
+        <button 
+          id="btnNavAsesoramiento" 
+          type="button" 
+          class="px-3 py-1.5 rounded-lg bg-amber-500 text-brand-earth hover:bg-amber-400 font-black text-xs transition flex items-center gap-1 shadow-sm"
+        >
+          <span>👨‍🌾</span>
+          <span data-i18n="nav_advice">Assessorament Agrícola</span>
+        </button>
+
+        <button 
+          id="btnNavEndoterapia" 
+          type="button" 
+          class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 font-black text-xs transition flex items-center gap-1 shadow-sm"
+        >
+          <span>💉</span>
+          <span data-i18n="nav_endo">Endoteràpia</span>
+        </button>
+      </div>
+
+    </div>
+  </nav>
+
+  <!-- ========================================================================
+       PANEL DINÁMICO DE SUBCATEGORÍAS (Árbol estricto de navegación multinivel)
+       Jerarquía estricta según SKILL.md:
+       - MASCOTAS: Perro (Alimentación [Seca, Húmeda, Snacks], Paseo, Higiene, Descanso, Comederos, Juguetes, Varios),
+                   Gato (Alimentación, Rascadores, Higiene, Paseo, Juguetes, Varios),
+                   Aves (Alimentación, Jaulas y Cuidado), Roedores, Peces, Tortugas, Granja
+       - HUERTO Y JARDÍN: Herramientas/Maquinaria, Macetas (Terracota, Plástico), Tierras/Nutrición,
+                          Fitosanitarios (Insecticidas, Fungicidas, Herbicidas, Control Roedores, Trampas, Endoterapia),
+                          Plantas/Cultivo (Semillas, Plantel), Mallas/Riego
+       - ALIMENTACIÓN: Consumo Humano/Proximidad
+       - MISCELÁNEA: Tapones de corcho, Varios
+       ======================================================================== -->
+  <section id="subcategoriesNav" class="hidden bg-white dark:bg-zinc-800 border-b-2 border-brand-earth dark:border-zinc-700 shadow-sm transition-all duration-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 space-y-2.5">
+      
+      <!-- Nivel 2: Subcategorías principales (ej. Perro, Gato, Herramientas, Macetas...) -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 flex-1" id="subcategoriesList">
+          <!-- Render dinámico de botones de nivel 2 -->
+        </div>
+        <button id="btnCloseSubcategories" type="button" aria-label="Tancar submenú" class="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 font-bold px-2 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 transition shrink-0">
+          ✕
+        </button>
+      </div>
+
+      <!-- Nivel 3: Subcategorías profundas (ej. Alimentación, Paseo, Terracota, Plástico, Insecticidas...) -->
+      <div id="deepSubcategoriesNav" class="hidden pt-2 border-t border-zinc-200 dark:border-zinc-700 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5">
+        <span class="text-[11px] font-black uppercase text-zinc-400 dark:text-zinc-500 shrink-0">Subsecció:</span>
+        <div id="deepSubcategoriesList" class="flex items-center gap-1.5 flex-wrap">
+          <!-- Render dinámico de botones nivel 3 -->
+        </div>
+      </div>
+
+      <!-- Nivel 4: Sub-especialidades (ej. Perro > Alimentación > [Seca, Húmeda, Snacks]) -->
+      <div id="tertiarySubcategoriesNav" class="hidden pt-1.5 border-t border-dashed border-zinc-200 dark:border-zinc-700 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5">
+        <span class="text-[10px] font-black uppercase text-brand-turquoise dark:text-teal-400 shrink-0">Varietat:</span>
+        <div id="tertiarySubcategoriesList" class="flex items-center gap-1.5 flex-wrap">
+          <!-- Render dinámico de botones nivel 4 -->
+        </div>
+      </div>
+
+      <!-- Banner contextual de Endoterapia si se selecciona Fitosanitarios > Endoterapia -->
+      <div id="endoQuickBanner" class="hidden p-3 bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-500 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl select-none">💉</span>
+          <div>
+            <h4 class="font-black text-emerald-800 dark:text-emerald-300">Servei Professional d'Endoteràpia Vegetal Can Torra</h4>
+            <p class="text-[11px] text-emerald-700 dark:text-emerald-400">Tractament de processionària del pi, morrut de les palmeres i plagues d'arbrat per injecció vascular directa.</p>
+          </div>
+        </div>
+        <button id="btnOpenEndoFromBanner" type="button" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl cartoon-card transition whitespace-nowrap self-start sm:self-auto">
+          Demanar pressupost telefònic
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       BANNER DE IDENTIDAD CORPORATIVA
+       ======================================================================== -->
+  <section class="bg-gradient-to-r from-teal-600 via-brand-turquoise to-teal-500 text-white py-3.5 px-4 shadow-sm border-b-2 border-brand-earth">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl md:text-3xl select-none">🌾</span>
+        <div>
+          <h2 class="font-black text-sm md:text-base leading-snug" data-i18n="hero_title">
+            Tradició i assessorament al teu servei des de 1948
+          </h2>
+          <p class="text-xs text-teal-100" data-i18n="hero_subtitle">
+            Especialistes en sanitat vegetal, nutrició animal i cultiu de proximitat a Terrassa i comarca.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button 
+          id="heroAdviceBtn" 
+          type="button" 
+          class="bg-brand-earth hover:bg-zinc-800 text-white font-black text-xs px-3.5 py-1.5 rounded-xl cartoon-card transition flex items-center gap-1.5"
+        >
+          <span>🚜</span>
+          <span data-i18n="hero_advice_btn">Assessorament Agrònom a Botiga</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       3. CONTENEDOR PRINCIPAL DEL CATÁLOGO
+       ======================================================================== -->
+  <main id="catalogContainer" class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+    
+    <!-- Filtros dinámicos por Marca basados en el Stock -->
+    <section id="brandFiltersSection" class="mb-6 bg-white dark:bg-zinc-800 p-4 rounded-2xl border-2 border-brand-earth dark:border-zinc-700 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-lg select-none">🏷️</span>
+          <h3 class="font-black text-xs uppercase tracking-wider text-brand-earth dark:text-zinc-300" data-i18n="filter_brand_title">
+            Filtrar per Marques:
+          </h3>
+          <span id="brandCountBadge" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-brand-turquoise border border-brand-turquoise/30">
+            0 marques
+          </span>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <!-- Toggle: Només marques amb estoc -->
+          <label class="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+            <input type="checkbox" id="toggleOnlyInStockBrands" class="rounded accent-brand-turquoise cursor-pointer w-3.5 h-3.5" />
+            <span data-i18n="filter_only_instock">Només marques amb estoc</span>
+          </label>
+          <button 
+            id="clearBrandFilterBtn" 
+            type="button" 
+            class="text-xs font-bold text-brand-turquoise hover:underline transition"
+            data-i18n="clear_filters"
+          >
+            Netejar filtres
+          </button>
+        </div>
+      </div>
+      <div id="brandFilterContainer" class="flex flex-wrap gap-2 pt-1">
+        <!-- Render dinámico de botones de marca según categoría activa y su stock -->
+        <span class="text-xs text-zinc-400 italic">Selecciona una categoria per veure marques disponibles</span>
+      </div>
+    </section>
+
+    <!-- Título de vista activa, migas de pan y contador de productos -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+      <div>
+        <div id="catalogBreadcrumbs" class="text-xs font-bold text-brand-turquoise uppercase tracking-wider mb-0.5 flex items-center flex-wrap gap-1">
+          <span class="breadcrumb-link" data-level="root">Catàleg General</span>
+        </div>
+        <h2 id="currentCategoryViewTitle" class="text-xl md:text-2xl font-black text-brand-earth dark:text-zinc-100">
+          Tots els productes
+        </h2>
+      </div>
+      <span id="productCounter" class="self-start sm:self-auto text-xs font-bold px-3 py-1.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full border border-zinc-300 dark:border-zinc-700">
+        0 productes
+      </span>
+    </div>
+
+    <!-- Grid del Catálogo de Productos -->
+    <section 
+      id="productsGrid" 
+      class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+      aria-label="Llistat de productes"
+    >
+      <!-- Inserción dinámica de tarjetas de producto generadas por app.js -->
+      <div class="col-span-full py-12 text-center text-zinc-400 dark:text-zinc-500 font-bold">
+        <div class="text-4xl mb-2">📦</div>
+        <p>Carregant el catàleg de productes...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================
+       MODALES SEMÁNTICOS DE LA APLICACIÓN
+       ======================================================================== -->
+
+  <!-- Modal: Carrito y Checkout con Reglas de Reparto a Terrassa y comarca -->
+  <div id="cartModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex justify-end transition-opacity" role="dialog" aria-modal="true" aria-labelledby="cartModalTitle">
+    <div class="bg-white dark:bg-zinc-900 w-full max-w-lg h-full flex flex-col border-l-4 border-brand-turquoise shadow-2xl p-5 overflow-y-auto">
+      
+      <!-- Cabecera del Carrito -->
+      <div class="flex items-center justify-between border-b-2 border-brand-earth dark:border-zinc-700 pb-3">
+        <h3 id="cartModalTitle" class="text-lg font-black flex items-center gap-2 text-brand-earth dark:text-zinc-100">
+          <span>🛒</span> <span data-i18n="cart_title">La teva Cistella de Compra</span>
+        </h3>
+        <button id="btnCloseCartModal" type="button" aria-label="Tancar cistella" class="w-8 h-8 rounded-full border-2 border-brand-earth dark:border-zinc-600 font-bold flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Contenedor principal de la Cesta (cuando está activa) -->
+      <div id="cartActiveView" class="flex-1 flex flex-col">
+        
+        <!-- Banner de Reglas de Reparto y Zonas de Entrega -->
+        <div class="my-3 p-3 bg-teal-50 dark:bg-zinc-800/80 rounded-xl border border-brand-turquoise/40 text-xs">
+          <div class="flex items-center gap-1.5 font-black text-brand-turquoise dark:text-teal-400 mb-1">
+            <span>🚚</span>
+            <span>Repartiment exprés en menys de 48h:</span>
+          </div>
+          <p class="text-[11px] text-zinc-600 dark:text-zinc-300 mb-2">
+            Servei directe de Garden Can Torra per a les poblacions de:
+          </p>
+          <div class="flex flex-wrap gap-1 mb-2.5">
+            <span class="delivery-zone-badge">📍 Terrassa</span>
+            <span class="delivery-zone-badge">📍 Viladecavalls</span>
+            <span class="delivery-zone-badge">📍 Vacarisses</span>
+            <span class="delivery-zone-badge">📍 Ullastrell</span>
+            <span class="delivery-zone-badge">📍 Matadepera</span>
+            <span class="delivery-zone-badge">📍 Rubí</span>
+            <span class="delivery-zone-badge">📍 Sabadell</span>
+          </div>
+          <!-- Barra de progreso para envío gratuito (45€) -->
+          <div class="space-y-1">
+            <div class="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+              <span id="shippingProgressText">Enviament gratuït a partir de 45€</span>
+              <span id="shippingProgressAmount">0.00 / 45€</span>
+            </div>
+            <div class="shipping-progress-track">
+              <div id="shippingProgressBar" class="shipping-progress-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de elementos del carrito -->
+        <div id="cartItemsList" class="flex-1 overflow-y-auto py-2 divide-y divide-zinc-200 dark:divide-zinc-700 min-h-[120px]">
+          <p class="text-center py-8 text-zinc-400 font-bold">La cistella està buida.</p>
+        </div>
+
+        <!-- Formulario de Entrega, Datos de Contacto y Pago -->
+        <div id="cartCheckoutSection" class="border-t-2 border-brand-earth dark:border-zinc-700 pt-3 space-y-3">
+          
+          <!-- Selector Método de Entrega -->
+          <div>
+            <label class="block text-xs font-black uppercase text-zinc-500 dark:text-zinc-400 mb-1.5" data-i18n="checkout_delivery_type">
+              Mètode d'entrega:
+            </label>
+            <div class="flex gap-2">
+              <button id="btnPickup" type="button" class="delivery-method-btn selected text-xs">
+                <div class="text-base mb-0.5">🏬</div>
+                <div>Recollida a botiga</div>
+                <div class="text-[10px] font-normal text-teal-100">Gratis • Terrassa</div>
+              </button>
+              <button id="btnDelivery" type="button" class="delivery-method-btn text-xs">
+                <div class="text-base mb-0.5">🚚</div>
+                <div>Repartiment a domicili</div>
+                <div class="text-[10px] font-normal text-zinc-500 dark:text-zinc-400">Màxim 48 hores</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Campos de Reparto a Domicilio (Zonas Aledañas) -->
+          <div id="deliveryFields" class="space-y-2 hidden bg-zinc-50 dark:bg-zinc-800 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs">
+            <div>
+              <label class="block font-bold mb-1 text-brand-earth dark:text-zinc-200">
+                Població de lliurament (Vallès Occidental):
+              </label>
+              <select id="checkoutTown" class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 font-bold">
+                <option value="Terrassa">Terrassa (Seu Can Torra)</option>
+                <option value="Viladecavalls">Viladecavalls</option>
+                <option value="Vacarisses">Vacarisses</option>
+                <option value="Ullastrell">Ullastrell</option>
+                <option value="Matadepera">Matadepera</option>
+                <option value="Rubí">Rubí</option>
+                <option value="Sabadell">Sabadell</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold mb-1 text-brand-earth dark:text-zinc-200">Adreça completa:</label>
+              <input type="text" id="checkoutAddress" placeholder="Carrer, avinguda, número, escala, pis..." class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900" />
+            </div>
+            <div>
+              <label class="block font-bold mb-1 text-brand-earth dark:text-zinc-200">Indicacions de repartiment (opcional):</label>
+              <input type="text" id="checkoutDeliveryNotes" placeholder="Ex: Deixar a consergeria, trucar abans d'arribar..." class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900" />
+            </div>
+            <div class="p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-lg flex items-center gap-2 text-[11px] text-emerald-800 dark:text-emerald-300 font-bold">
+              <span>⏱️</span>
+              <span>Compromís Can Torra: Repartiment realitzat en un termini màxim de 48 hores laborables.</span>
+            </div>
+          </div>
+
+          <!-- Datos del Comprador -->
+          <div class="space-y-2 text-xs">
+            <label class="block font-black text-zinc-500 dark:text-zinc-400">Dades de contacte del comprador:</label>
+            <input type="text" id="checkoutName" placeholder="Nom i cognoms *" required class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" />
+            <div class="grid grid-cols-2 gap-2">
+              <input type="tel" id="checkoutPhone" placeholder="Telèfon de contacte *" required class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" />
+              <input type="email" id="checkoutEmail" placeholder="Correu electrònic *" required class="w-full p-2 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" />
+            </div>
+          </div>
+
+          <!-- Selección de Forma de Pago (SKILL.md: Tarjeta, Efectivo, Datáfono) -->
+          <div class="space-y-1.5 text-xs">
+            <label class="block font-black text-zinc-500 dark:text-zinc-400" data-i18n="checkout_payment_type">
+              Forma de pagament:
+            </label>
+            <div class="grid grid-cols-1 gap-2" id="paymentOptionsContainer">
+              <!-- Tarjeta -->
+              <div class="payment-option-card selected" data-payment="Targeta (Visa / Mastercard)">
+                <span class="text-xl">💳</span>
+                <div class="flex-1">
+                  <div class="font-black text-xs text-brand-earth dark:text-zinc-100">Targeta bancària (Visa / Mastercard)</div>
+                  <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Passarel·la de pagament segura</div>
+                </div>
+                <input type="radio" name="paymentMethodRadio" value="Targeta (Visa / Mastercard)" checked class="accent-brand-turquoise" />
+              </div>
+              <!-- Efectivo a la entrega -->
+              <div class="payment-option-card" data-payment="Efectiu a l'entrega">
+                <span class="text-xl">💵</span>
+                <div class="flex-1">
+                  <div class="font-black text-xs text-brand-earth dark:text-zinc-100">Efectiu al lliurament</div>
+                  <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Pagament en metàl·lic en rebre la comanda</div>
+                </div>
+                <input type="radio" name="paymentMethodRadio" value="Efectiu a l'entrega" class="accent-brand-turquoise" />
+              </div>
+              <!-- Datáfono a la entrega -->
+              <div class="payment-option-card" data-payment="Datàfon a l'entrega">
+                <span class="text-xl">📱</span>
+                <div class="flex-1">
+                  <div class="font-black text-xs text-brand-earth dark:text-zinc-100">Datàfon al lliurament</div>
+                  <div class="text-[10px] text-zinc-500 dark:text-zinc-400">El repartidor porta TPV per cobrar amb targeta</div>
+                </div>
+                <input type="radio" name="paymentMethodRadio" value="Datàfon a l'entrega" class="accent-brand-turquoise" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Desglose Económico -->
+          <div class="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl space-y-1.5 text-xs">
+            <div class="flex justify-between text-zinc-600 dark:text-zinc-400">
+              <span>Subtotal productes:</span>
+              <span id="cartSubtotalText" class="font-bold">0.00€</span>
+            </div>
+            <div class="flex justify-between text-zinc-600 dark:text-zinc-400">
+              <span>Despeses de repartiment:</span>
+              <span id="cartShippingCostText" class="font-bold text-emerald-600 dark:text-emerald-400">Gratis</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-2 border-t border-zinc-300 dark:border-zinc-700 text-sm font-black">
+              <span class="text-brand-earth dark:text-zinc-100" data-i18n="cart_total">Total comanda:</span>
+              <span id="cartTotalText" class="text-xl text-brand-turquoise font-black">0.00€</span>
+            </div>
+          </div>
+
+          <!-- Botón Tramitar Pedido -->
+          <button id="btnCheckoutSubmit" type="button" class="w-full py-3 bg-brand-turquoise hover:bg-brand-turquoiseDark text-white font-black text-sm rounded-xl cartoon-card transition shadow-md flex items-center justify-center gap-2">
+            <span>🛍️</span>
+            <span data-i18n="checkout_confirm_btn">Finalitzar Comanda</span>
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- Vista de Confirmación de Pedido (se muestra tras tramitar con éxito) -->
+      <div id="cartSuccessView" class="hidden flex-1 flex flex-col items-center justify-center text-center p-4">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center text-3xl mb-4 border-2 border-emerald-500">
+          ✓
+        </div>
+        <h4 class="text-xl font-black text-brand-earth dark:text-zinc-100 mb-1" id="orderSuccessTitle">
+          Comanda rebuda amb èxit!
+        </h4>
+        <p class="text-xs text-brand-turquoise font-bold mb-4" id="orderSuccessId">Ref: GCT-000000</p>
+        
+        <div class="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 w-full text-left text-xs space-y-2 mb-6">
+          <div><strong>Client:</strong> <span id="successClientName">--</span></div>
+          <div><strong>Mètode d'entrega:</strong> <span id="successDeliveryMethod">--</span></div>
+          <div><strong>Termini:</strong> <span class="text-emerald-600 dark:text-emerald-400 font-black">Màxim 48 hores</span></div>
+          <div><strong>Forma de pagament:</strong> <span id="successPaymentMethod">--</span></div>
+          <div class="border-t border-zinc-200 dark:border-zinc-700 pt-2 font-black flex justify-between">
+            <span>Total abonat:</span>
+            <span id="successTotalText" class="text-brand-turquoise">0.00€</span>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-zinc-500 mb-6 leading-relaxed">
+          Hem enviat el justificant complet per correu electrònic. El nostre equip de Garden Can Torra està preparant la teva comanda.
+        </p>
+
+        <button id="btnContinueShopping" type="button" class="px-6 py-2.5 bg-brand-turquoise hover:bg-brand-turquoiseDark text-white font-black text-xs rounded-xl cartoon-card transition">
+          Continuar Comprant
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal: Asesoramiento Agrícola en Tienda Física -->
+  <div id="modalAsesoramiento" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modalAsesoramientoTitle">
+    <div class="bg-white dark:bg-zinc-900 max-w-lg w-full rounded-2xl border-4 border-brand-earth dark:border-brand-turquoise p-6 cartoon-card relative">
+      <button id="btnCloseAsesoramientoModal" type="button" class="absolute top-4 right-4 text-xl font-bold text-zinc-500 hover:text-black dark:hover:text-white">✕</button>
+      <div class="text-center mb-4">
+        <div class="text-5xl mb-2 select-none">👨‍🌾</div>
+        <h3 id="modalAsesoramientoTitle" class="text-xl font-black text-brand-earth dark:text-brand-turquoise">Assessorament Agrònom Personalitzat</h3>
+        <span class="text-xs font-bold text-zinc-500">Servei tècnic exclusiu a la botiga física</span>
+      </div>
+      <div class="text-xs space-y-3 text-zinc-600 dark:text-zinc-300 leading-relaxed">
+        <p>A <strong>Garden Can Torra</strong> comptem amb tècnics especialitzats en sanitat vegetal, tractaments biològics, abonaments ecològics i resolució de plagues de l'hort i el jardí.</p>
+        <div class="p-3 bg-teal-50 dark:bg-zinc-800 border-2 border-brand-turquoise rounded-xl">
+          <p class="font-bold text-brand-turquoise">📍 Visita'ns sense compromís:</p>
+          <p>T'ajudem a escollir el tractament més respectuós i eficaç per a les teves plantes o cultius.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Formulario Interactivo de Endoterapia (Con todos los campos de SKILL.md) -->
+  <div id="modalEndoterapia" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modalEndoterapiaTitle">
+    <div class="bg-white dark:bg-zinc-900 max-w-xl w-full rounded-2xl border-4 border-brand-earth dark:border-emerald-500 p-6 cartoon-card max-h-[92vh] overflow-y-auto relative">
+      <button id="btnCloseEndoterapiaModal" type="button" aria-label="Tancar formulari d'endoteràpia" class="absolute top-4 right-4 text-xl font-bold text-zinc-500 hover:text-black dark:hover:text-white">✕</button>
+      
+      <!-- Cabecera de Endoterapia -->
+      <div class="mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xl shadow">
+            💉
+          </div>
+          <div>
+            <h3 id="modalEndoterapiaTitle" class="text-xl font-black text-brand-earth dark:text-emerald-400 leading-tight">
+              Sol·licitud de Tractament d'Endoteràpia
+            </h3>
+            <p class="text-[11px] text-zinc-500 dark:text-zinc-400">
+              Tractament vascular ecològic directe al tronc per injecció. Màxima eficàcia sense polvorització aèria.
+            </p>
+          </div>
+        </div>
+
+        <!-- AVISO OBLIGATORIO: Presupuesto cerrado por llamada -->
+        <div class="mt-3 p-3 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-xl flex items-start gap-2 text-xs text-amber-900 dark:text-amber-200">
+          <span class="text-base select-none">📞</span>
+          <p class="leading-relaxed">
+            <strong>Important:</strong> El pressupost definitiu es tanca per trucada telefònica directa amb el nostre agrònom expert després de valorar les dades tècniques i les fotografies de l'arbrat.
+          </p>
+        </div>
+      </div>
+
+      <!-- Formulario de Solicitud -->
+      <form id="formEndoterapia" class="space-y-4 text-xs">
+        
+        <!-- Campo 1: Tipo de árbol / Especie con sugerencias rápidas -->
+        <div>
+          <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+            1. Tipus d'arbre / Espècie a tractar: *
+          </label>
+          <div class="flex flex-wrap gap-1.5 mb-2" id="endoTreePills">
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Pi (Processionària)">🌲 Pi (Processionària)</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Palmera (Morrut roig)">🌴 Palmera (Morrut)</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Plàtan d'ombra (Tigre)">🌳 Plàtan d'ombra</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Alzina o Roure">🌰 Alzina / Roure</button>
+            <button type="button" class="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-100 dark:hover:bg-zinc-700 rounded-lg font-bold border border-zinc-300 dark:border-zinc-700 transition" data-tree="Fruiter">🍎 Fruiter</button>
+          </div>
+          <input 
+            type="text" 
+            id="endoTreeType" 
+            placeholder="Escriu l'espècie o selecciona una opció superior..." 
+            required 
+            class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-bold" 
+          />
+        </div>
+
+        <!-- Campos 2 y 3: Cantidad de árboles con Stepper y Perímetro aproximado -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Cantidad con Stepper +/- -->
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              2. Quantitat d'arbres: *
+            </label>
+            <div class="flex items-center gap-2">
+              <button type="button" id="btnDecEndoQty" class="w-9 h-9 rounded-xl border-2 border-brand-earth dark:border-zinc-700 font-black text-base bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 flex items-center justify-center">-</button>
+              <input 
+                type="number" 
+                id="endoQuantity" 
+                min="1" 
+                max="500" 
+                value="1" 
+                required 
+                class="flex-1 p-2 text-center border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-black text-base" 
+              />
+              <button type="button" id="btnIncEndoQty" class="w-9 h-9 rounded-xl border-2 border-brand-earth dark:border-zinc-700 font-black text-base bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 flex items-center justify-center">+</button>
+            </div>
+          </div>
+
+          <!-- Perímetro en cm -->
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              3. Perímetre del tronc (aprox): *
+            </label>
+            <div class="relative">
+              <input 
+                type="text" 
+                id="endoPerimeter" 
+                placeholder="Ex: 75" 
+                required 
+                class="w-full p-2.5 pr-12 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-bold" 
+              />
+              <span class="absolute right-3 top-2.5 text-zinc-500 font-bold">cm</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Campos 4, 5 y 6: Datos de Contacto y Ubicación -->
+        <div class="space-y-3 pt-1">
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              4. Nom i Cognoms de contacte: *
+            </label>
+            <input 
+              type="text" 
+              id="endoName" 
+              placeholder="El teu nom complet" 
+              required 
+              class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" 
+            />
+          </div>
+
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              5. Adreça o Finca de l'actuació (amb municipi): *
+            </label>
+            <input 
+              type="text" 
+              id="endoAddress" 
+              placeholder="Ex: Camí de Can Bogunyà s/n, Terrassa" 
+              required 
+              class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800" 
+            />
+          </div>
+
+          <div>
+            <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+              6. Telèfon de contacte directe per tancar el pressupost: *
+            </label>
+            <input 
+              type="tel" 
+              id="endoPhone" 
+              placeholder="600 00 00 00" 
+              required 
+              class="w-full p-2.5 border-2 border-brand-earth dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800 font-bold text-sm" 
+            />
+          </div>
+        </div>
+
+        <!-- Campo 7: Botón para subir fotos con Previsualización Interactiva -->
+        <div>
+          <label class="block font-black text-brand-earth dark:text-zinc-200 mb-1">
+            7. Pujar foto de l'arbre o de la plaga (opcional però recomanat):
+          </label>
+          
+          <div id="endoDropzone" class="endo-dropzone">
+            <input 
+              type="file" 
+              id="endoPhoto" 
+              accept="image/*" 
+              class="hidden" 
+            />
+            <div id="endoUploadPrompt" class="flex flex-col items-center">
+              <span class="text-3xl mb-1">📷</span>
+              <span class="font-black text-brand-turquoise dark:text-teal-400">Prem aquí per seleccionar o arrossega una foto</span>
+              <span class="text-[10px] text-zinc-500 mt-0.5">Formats suportats: JPG, PNG, WEBP</span>
+            </div>
+            
+            <!-- Contenedor de Vista Previa -->
+            <div id="endoPhotoPreviewContainer" class="hidden flex items-center justify-center gap-3 pt-1">
+              <div class="endo-photo-preview">
+                <img id="endoPhotoPreviewImg" src="" alt="Previsualització de l'arbre" />
+                <button type="button" id="btnRemoveEndoPhoto" class="endo-photo-remove" title="Eliminar foto">✕</button>
+              </div>
+              <div class="text-left text-xs">
+                <p id="endoPhotoName" class="font-bold text-zinc-700 dark:text-zinc-200 truncate max-w-[200px]">foto.jpg</p>
+                <p id="endoPhotoSize" class="text-[10px] text-zinc-400">0 KB</p>
+                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Foto adjunta correctament</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón de Envío -->
+        <button 
+          type="submit" 
+          id="btnSubmitEndo"
+          class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl cartoon-card transition shadow-md flex items-center justify-center gap-2 text-sm mt-2"
+        >
+          <span>📨</span>
+          <span>Enviar Sol·licitud per a Pressupost Telefònic</span>
+        </button>
+
+      </form>
+
+      <!-- Estado de Éxito de la Solicitud de Endoterapia -->
+      <div id="endoSuccessView" class="hidden text-center py-6 space-y-4">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center text-3xl mx-auto border-2 border-emerald-500">
+          ✓
+        </div>
+        <h4 class="text-xl font-black text-brand-earth dark:text-zinc-100">
+          Sol·licitud d'Endoteràpia Registrada!
+        </h4>
+        <p class="text-xs text-emerald-600 dark:text-emerald-400 font-black" id="endoSuccessRef">
+          Expedient: ENDO-1948
+        </p>
+        <div class="bg-zinc-50 dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 text-left text-xs space-y-1.5 max-w-md mx-auto">
+          <p><strong>Arbre:</strong> <span id="endoSuccessTree">--</span></p>
+          <p><strong>Quantitat:</strong> <span id="endoSuccessQty">--</span></p>
+          <p><strong>Perímetre:</strong> <span id="endoSuccessPerimeter">--</span></p>
+          <p><strong>Contacte:</strong> <span id="endoSuccessContact">--</span></p>
+          <p class="pt-2 text-amber-700 dark:text-amber-300 font-bold border-t border-zinc-200 dark:border-zinc-700">
+            📞 Els tècnics de Garden Can Torra et trucaran en un màxim de 24-48h per confirmar el diagnòstic i tancar el pressupost exacte.
+          </p>
+        </div>
+        <button id="btnCloseEndoSuccess" type="button" class="px-6 py-2.5 bg-brand-turquoise text-white font-black text-xs rounded-xl cartoon-card transition">
+          D'acord, tancar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       4. FOOTER SEMÁNTICO
+       ======================================================================== -->
+  <footer class="mt-auto bg-brand-earth text-white border-t-4 border-brand-turquoise py-8 px-4">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-2xl select-none">🌱</span>
+          <h4 class="font-black text-sm text-brand-turquoise">GARDEN CAN TORRA</h4>
+        </div>
+        <p class="text-zinc-300 leading-relaxed">
+          Fundat el 1948. Més de 75 anys d'experiència al servei de l'agricultura, jardineria, mascotes i alimentació tradicional.
+        </p>
+      </div>
+      <div>
+        <h4 class="font-black text-sm text-brand-turquoise mb-2">Repartiment a Domicili (48h)</h4>
+        <p class="text-zinc-300 leading-relaxed">
+          Zones cobertes: Terrassa, Viladecavalls, Vacarisses, Ullastrell, Matadepera, Rubí i Sabadell.
+        </p>
+      </div>
+      <div>
+        <h4 class="font-black text-sm text-brand-turquoise mb-2">Contacte &amp; Horaris</h4>
+        <p class="text-zinc-300 leading-relaxed">
+          Atenció al client i assessorament tècnic presencial a la botiga física.
+        </p>
+      </div>
+    </div>
+    <div class="max-w-7xl mx-auto mt-6 pt-4 border-t border-zinc-700 text-center text-[11px] text-zinc-400">
+      © Garden Can Torra 1948. Tots els drets reservats. Aplicació Web Progressiva (PWA).
+    </div>
+  </footer>
+
+</body>
+</html>
+
+==> manifest.json <==
+{
+  "name": "Garden Can Torra 1948",
+  "short_name": "Can Torra",
+  "description": "Tu tienda de jardinería, mascotas y proximidad desde 1948",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FFFFFF",
+  "theme_color": "#00A896",
+  "lang": "ca-ES",
+  "categories": ["shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=192&auto=format&fit=crop&q=60",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=512&auto=format&fit=crop&q=60",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
+==> styles.css <==
+/* ==========================================================================
+   Garden Can Torra (Fundat el 1948)
+   styles.css - Sistema de Diseño Corporativo, Modo Claro/Oscuro y Catálogo
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. TIPOGRAFÍA Y FUENTES LEGIBLES
+   -------------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+:root {
+  /* Paleta Corporativa - Modo Claro */
+  --color-primary: #00A896;            /* Azul turquesa corporativo */
+  --color-primary-dark: #028090;       /* Azul turquesa oscuro para interacción */
+  --color-primary-light: #E0F7F4;      /* Turquesa muy suave para fondos activos */
+  --color-primary-hover: #00BFAB;      /* Turquesa vibrante */
+  
+  --color-earth: #3B2F2F;              /* Marrón tierra corporativo */
+  --color-earth-dark: #2D221E;         /* Marrón tierra oscuro para bordes cartoon */
+  --color-earth-light: #654E4E;        /* Marrón tierra suave para subtítulos */
+  --color-earth-muted: #7A6965;        /* Texto secundario de alta legibilidad */
+  
+  --color-bg-body: #F8F9FA;            /* Fondo principal cálido y limpio */
+  --color-surface: #FFFFFF;            /* Fondo de tarjetas y elementos */
+  --color-surface-hover: #F1F3F5;      /* Superficie interactiva */
+  
+  --color-border: #2D221E;             /* Borde estilo historieta/cartoon */
+  --color-shadow: #2D221E;             /* Sombra sólida desplazada */
+  
+  --color-stock-in: #00A896;           /* Stock disponible */
+  --color-stock-out: #DC2626;          /* Agotado */
+  --color-accent-gold: #F59E0B;        /* Acento cálido agrícola */
+
+  /* Fuentes */
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   2. PALETA PARA MODO OSCURO (.dark)
+   -------------------------------------------------------------------------- */
+.dark {
+  --color-bg-body: #141416;            /* Fondo oscuro principal suave */
+  --color-surface: #1E1E22;            /* Tarjetas y componentes */
+  --color-surface-hover: #27272D;
+  
+  --color-earth: #F4F4F6;              /* Texto principal claro */
+  --color-earth-dark: #FAFAFA;
+  --color-earth-light: #C7C7CF;
+  --color-earth-muted: #9E9EA8;
+  
+  --color-border: #00A896;             /* Bordes resaltados en turquesa corporativo */
+  --color-shadow: #00A896;             /* Sombra iluminada turquesa */
+  
+  --color-primary-light: rgba(0, 168, 150, 0.18);
+}
+
+/* --------------------------------------------------------------------------
+   3. ESTILOS BASE Y NORMALIZACIÓN
+   -------------------------------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg-body);
+  color: var(--color-earth);
+  font-family: var(--font-body);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+/* Selección de texto con identidad corporativa */
+::selection {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+}
+
+/* Barra de desplazamiento personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-body);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+/* --------------------------------------------------------------------------
+   4. COMPONENTES CARTOON (ESTILO DIVERTIDO Y SÓLIDO)
+   -------------------------------------------------------------------------- */
+.cartoon-card {
+  border: 2.5px solid var(--color-border);
+  box-shadow: 4px 4px 0px var(--color-shadow);
+  transition: transform 0.18s ease-in-out, box-shadow 0.18s ease-in-out, border-color 0.2s ease;
+  background-color: var(--color-surface);
+}
+
+.cartoon-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px var(--color-shadow);
+}
+
+.cartoon-card:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0px var(--color-shadow);
+}
+
+/* Botón estilo Cartoon */
+.cartoon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  border: 2px solid var(--color-border);
+  box-shadow: 3px 3px 0px var(--color-shadow);
+  border-radius: 0.75rem;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cartoon-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px var(--color-shadow);
+}
+
+.cartoon-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px var(--color-shadow);
+}
+
+.cartoon-btn-primary {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+}
+
+.cartoon-btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+/* Insignias Cartoon */
+.cartoon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1.5px solid var(--color-border);
+  border-radius: 9999px;
+  box-shadow: 1.5px 1.5px 0px var(--color-shadow);
+}
+
+/* --------------------------------------------------------------------------
+   5. NAVEGACIÓN Y SELECTORES
+   -------------------------------------------------------------------------- */
+.nav-category-btn {
+  position: relative;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+.nav-category-btn:hover {
+  transform: translateY(-1px);
+}
+
+.nav-category-btn.active {
+  background-color: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 -3px 0 #FFFFFF;
+}
+
+/* Chips de Filtros de Marca */
+.brand-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  border: 2px solid var(--color-earth-dark);
+  background-color: var(--color-surface);
+  color: var(--color-earth);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 2px 2px 0px var(--color-earth-dark);
+  user-select: none;
+}
+
+.brand-filter-chip:hover {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--color-primary);
+}
+
+.brand-filter-chip.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 2px 2px 0px var(--color-earth-dark);
+}
+
+.dark .brand-filter-chip.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary-hover);
+  box-shadow: 2px 2px 0px #028090;
+}
+
+.brand-filter-chip.out-of-stock-chip {
+  opacity: 0.75;
+  border-style: dashed;
+  border-color: #EF4444;
+}
+
+.brand-filter-chip.out-of-stock-chip:hover {
+  opacity: 1;
+}
+
+/* Indicadores de stock en chips de marca */
+.brand-stock-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background-color: rgba(0, 168, 150, 0.15);
+  color: var(--color-primary-dark);
+  transition: all 0.15s ease;
+}
+
+.brand-filter-chip.active .brand-stock-tag {
+  background-color: rgba(255, 255, 255, 0.35);
+  color: #FFFFFF;
+}
+
+.brand-out-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #DC2626;
+  transition: all 0.15s ease;
+}
+
+.brand-filter-chip.active .brand-out-tag {
+  background-color: #DC2626;
+  color: #FFFFFF;
+}
+
+.dark .brand-stock-tag {
+  background-color: rgba(0, 168, 150, 0.25);
+  color: #2DD4BF;
+}
+
+.dark .brand-out-tag {
+  background-color: rgba(239, 68, 68, 0.25);
+  color: #F87171;
+}
+
+/* Píldoras de navegación de subcategorías (Nivel 2 y 3) */
+.subcat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-earth);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 2px 2px 0px var(--color-shadow);
+  white-space: nowrap;
+}
+
+.subcat-pill:hover {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--color-primary);
+}
+
+.subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 2px 2px 0px var(--color-earth-dark);
+}
+
+.dark .subcat-pill {
+  border-color: #3F3F46;
+  box-shadow: 2px 2px 0px #27272A;
+}
+
+.dark .subcat-pill:hover {
+  border-color: var(--color-primary);
+  box-shadow: 2px 2px 0px var(--color-primary);
+}
+
+.dark .subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary-hover);
+  box-shadow: 2px 2px 0px #028090;
+}
+
+.deep-subcat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: 1.5px solid #CBD5E1;
+  background-color: #F8FAFC;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.deep-subcat-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  background-color: var(--color-primary-light);
+}
+
+.deep-subcat-pill.active {
+  background-color: var(--color-earth);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 1.5px 1.5px 0px var(--color-primary);
+}
+
+.dark .deep-subcat-pill {
+  background-color: #27272A;
+  color: #D4D4D8;
+  border-color: #3F3F46;
+}
+
+.dark .deep-subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-primary-hover);
+}
+
+/* Píldoras de micro-variedad / Nivel 4 */
+.tertiary-subcat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  border: 1.5px dashed var(--color-primary);
+  background-color: var(--color-surface);
+  color: var(--color-primary-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tertiary-subcat-pill:hover {
+  background-color: var(--color-primary-light);
+  transform: translateY(-1px);
+}
+
+.tertiary-subcat-pill.active {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-style: solid;
+  border-color: var(--color-earth-dark);
+  box-shadow: 1.5px 1.5px 0px var(--color-earth);
+}
+
+.dark .tertiary-subcat-pill {
+  background-color: #18181B;
+  color: #2DD4BF;
+  border-color: #00A896;
+}
+
+.dark .tertiary-subcat-pill.active {
+  background-color: #00A896;
+  color: #FFFFFF;
+  border-color: #2DD4BF;
+}
+
+/* Enlaces navegables en las migas de pan */
+.breadcrumb-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.breadcrumb-link:hover {
+  text-decoration: underline;
+  color: var(--color-primary-dark);
+}
+
+
+/* --------------------------------------------------------------------------
+   6. TARJETAS DEL CATÁLOGO DE PRODUCTOS (LEGIBILIDAD ÓPTIMA)
+   -------------------------------------------------------------------------- */
+.product-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 1.25rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  border: 2.5px solid var(--color-border);
+  box-shadow: 4px 4px 0px var(--color-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 6px 6px 0px var(--color-shadow);
+}
+
+/* Imagen de Producto */
+.product-image-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-color: #F1F3F5;
+  border: 2px solid var(--color-border);
+  border-radius: 1rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.dark .product-image-container {
+  background-color: #27272A;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image {
+  transform: scale(1.05);
+}
+
+/* Etiqueta de Marca */
+.product-brand {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+  margin-bottom: 0.25rem;
+}
+
+.dark .product-brand {
+  color: #2DD4BF;
+}
+
+/* Título de Producto */
+.product-title {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--color-earth);
+  margin-bottom: 0.4rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.4rem;
+}
+
+/* Descripción de Producto */
+.product-description {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--color-earth-muted);
+  margin-bottom: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-grow: 1;
+}
+
+/* SKU y Referencias */
+.product-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-earth-muted);
+  border-top: 1px dashed rgba(45, 34, 30, 0.15);
+  padding-top: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.dark .product-meta {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Bloque de Precio */
+.product-price-container {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.product-price {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--color-earth-dark);
+  letter-spacing: -0.02em;
+}
+
+.dark .product-price {
+  color: #FFFFFF;
+}
+
+.product-price-currency {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+/* Botón de Compra / Stock */
+.product-btn-add {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 800;
+  border: 2px solid var(--color-border);
+  border-radius: 0.85rem;
+  box-shadow: 3px 3px 0px var(--color-shadow);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.product-btn-add:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px var(--color-shadow);
+}
+
+.product-btn-add:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px var(--color-shadow);
+}
+
+/* Estado Agotado (Stock === 0) */
+.product-btn-add:disabled,
+.product-btn-add.out-of-stock {
+  background-color: #E4E4E7;
+  color: #71717A;
+  border-color: #A1A1AA;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.dark .product-btn-add:disabled,
+.dark .product-btn-add.out-of-stock {
+  background-color: #27272A;
+  color: #71717A;
+  border-color: #3F3F46;
+}
+
+/* Badge de Stock flotante sobre imagen */
+.stock-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--color-border);
+  box-shadow: 1.5px 1.5px 0px var(--color-shadow);
+  z-index: 2;
+}
+
+.stock-badge.in-stock {
+  background-color: #D1FAE5;
+  color: #065F46;
+}
+
+.stock-badge.out-of-stock {
+  background-color: #FEE2E2;
+  color: #991B1B;
+}
+
+.dark .stock-badge.in-stock {
+  background-color: #064E3B;
+  color: #A7F3D0;
+  border-color: var(--color-primary);
+}
+
+.dark .stock-badge.out-of-stock {
+  background-color: #7F1D1D;
+  color: #FECACA;
+  border-color: #EF4444;
+}
+
+/* --------------------------------------------------------------------------
+   7. MODALES Y FORMULARIOS
+   -------------------------------------------------------------------------- */
+input[type="text"],
+input[type="number"],
+input[type="tel"],
+input[type="email"],
+select,
+textarea {
+  font-family: var(--font-body);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(0, 168, 150, 0.25) !important;
+  outline: none;
+}
+
+/* Accesibilidad de foco */
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   8. FORMULARIO DE ENDOTERAPIA & SUBIDA DE FOTOS
+   -------------------------------------------------------------------------- */
+.endo-dropzone {
+  border: 2px dashed var(--color-primary);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  text-align: center;
+  background-color: var(--color-primary-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.endo-dropzone:hover {
+  border-color: var(--color-primary-dark);
+  background-color: rgba(0, 168, 150, 0.25);
+}
+
+.endo-photo-preview {
+  position: relative;
+  display: inline-block;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  box-shadow: 2px 2px 0px var(--color-shadow);
+}
+
+.endo-photo-preview img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+}
+
+.endo-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(220, 38, 38, 0.9);
+  color: #FFFFFF;
+  border-radius: 9999px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 11px;
+  border: 1px solid #FFFFFF;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   9. VISTA DEL CARRITO Y REGLAS DE ENVÍO A DOMICILIO
+   -------------------------------------------------------------------------- */
+.shipping-progress-track {
+  height: 8px;
+  border-radius: 9999px;
+  background-color: #E4E4E7;
+  overflow: hidden;
+}
+
+.dark .shipping-progress-track {
+  background-color: #3F3F46;
+}
+
+.shipping-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), #10B981);
+  transition: width 0.3s ease;
+}
+
+.delivery-zone-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background-color: #F1F5F9;
+  color: var(--color-earth);
+  border: 1px solid #CBD5E1;
+}
+
+.dark .delivery-zone-badge {
+  background-color: #27272A;
+  color: #E4E4E7;
+  border-color: #3F3F46;
+}
+
+/* Selector interactivo de métodos de pago */
+.payment-option-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--color-border);
+  border-radius: 0.85rem;
+  cursor: pointer;
+  background-color: var(--color-surface);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.payment-option-card:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.payment-option-card.selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+  box-shadow: 2px 2px 0px var(--color-primary);
+}
+
+/* Selector de método de entrega */
+.delivery-method-btn {
+  flex: 1;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: 0.85rem;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  background-color: var(--color-surface);
+  transition: all 0.15s ease;
+}
+
+.delivery-method-btn.selected {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-color: var(--color-earth-dark);
+  box-shadow: 3px 3px 0px var(--color-shadow);
+}
+
+
+==> sw.js <==
+/**
+ * ==========================================================================
+ * Garden Can Torra (Fundat el 1948) - PWA
+ * Service Worker: sw.js
+ * 
+ * Funcionalidades:
+ * - Funcionamiento sin conexión (Modo Offline) para toda la aplicación.
+ * - Pre-cacheo del App Shell (HTML, CSS, JS, Manifest, CDNs y Fuentes).
+ * - Estrategia Network-First con fallback a caché para Google Sheets (catálogo).
+ * - Estrategia Cache-First para recursos estáticos y fuentes.
+ * - Limpieza automática de versiones anteriores de caché en la activación.
+ * ==========================================================================
+ */
+
+const CACHE_NAME = 'cantorra-pwa-v1.0';
+const DATA_CACHE_NAME = 'cantorra-data-v1.0';
+
+// Recursos esenciales que forman el App Shell offline
+const STATIC_ASSETS = [
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './manifest.json',
+  'https://cdn.tailwindcss.com',
+  'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
+  'https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap'
+];
+
+/**
+ * 1. Evento INSTALL: Pre-cachear el App Shell
+ */
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('[Service Worker] Pre-cachejant App Shell estàtic...');
+        // addAll con captura individual para evitar que un fallo externo bloquee la instalación
+        return Promise.allSettled(
+          STATIC_ASSETS.map((asset) => {
+            return cache.add(asset).catch((err) => {
+              console.warn(`[Service Worker] No s'ha pogut pre-cachejar: ${asset}`, err);
+            });
+          })
+        );
+      })
+      .then(() => self.skipWaiting())
+  );
+});
+
+/**
+ * 2. Evento ACTIVATE: Limpieza de cachés antiguas y toma de control
+ */
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME && cacheName !== DATA_CACHE_NAME) {
+              console.log('[Service Worker] Esborrant memòria cau antiga:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+      .then(() => self.clients.claim())
+  );
+});
+
+/**
+ * 3. Evento FETCH: Enrutamiento de peticiones según su tipología
+ */
+self.addEventListener('fetch', (event) => {
+  const requestUrl = new URL(event.request.url);
+
+  // A. Peticiones a Google Sheets CSV (Datos dinámicos del Catálogo):
+  // Estrategia: Network-First con fallback a caché (si no hay internet, devuelve la última versión guardada)
+  if (requestUrl.hostname.includes('docs.google.com') || requestUrl.pathname.endsWith('.csv') || requestUrl.search.includes('output=csv')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          // Si la respuesta es válida, clonamos y actualizamos la caché de datos
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(DATA_CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Si estamos sin conexión (offline), servir los datos desde la caché
+          console.log('[Service Worker] Sense connexió. Servint dades de Google Sheets des de la memòria cau.');
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Respuesta de contingencia vacía si no hubiera datos cacheados
+            return new Response('Nombre,Categoría,Subcategoría,Marca,Precio,Descripción,SKU,Código de Barras,Imagen,Stock\n', {
+              headers: { 'Content-Type': 'text/csv; charset=utf-8' }
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // B. Navegación principal (páginas HTML):
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => {
+          return caches.match('./index.html') || caches.match('./');
+        })
+    );
+    return;
+  }
+
+  // C. Recursos estáticos, scripts, estilos, fuentes e imágenes:
+  // Estrategia: Cache-First con fallback a red y guardado dinámico
+  event.respondWith(
+    caches.match(event.request)
+      .then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return fetch(event.request)
+          .then((networkResponse) => {
+            // Guardar en caché solo peticiones GET válidas
+            if (
+              !networkResponse ||
+              networkResponse.status !== 200 ||
+              event.request.method !== 'GET'
+            ) {
+              return networkResponse;
+            }
+
+            // Clonar respuesta y guardar en caché para futuras visitas offline
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+
+            return networkResponse;
+          })
+          .catch((error) => {
+            // Si falla una imagen offline, servir imagen de reserva si es posible
+            if (event.request.destination === 'image') {
+              console.warn('[Service Worker] Imatge no disponible en mode offline:', event.request.url);
+            }
+            throw error;
+          });
+      })
+  );
+});
