@@ -20,7 +20,7 @@
 // Pega aquí el enlace de tu hoja de cálculo publicada en formato CSV:
 // En Google Sheets: Fitxer > Compartir > Publicar a la web > Format: Valors separats per comes (.csv)
 // ==========================================================================
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/TU_ENLACE_AQUI/pub?output=csv";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbxSP61yu45H_W9JmWRXhYHbzxjkD2dniSJU1zNas0LNq_NdjHK2zRjSbK-dRYGQJ3RM/exec";
 
 //Enviar compras registradas y acciones de Email
 const ORDER_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzo-sMi-X2aIG7gkph_Zi8tfEBQRpl80zESHPYH9R0X3_ZGBXHWqfrkAVWSlgaSMBGe/exec";
