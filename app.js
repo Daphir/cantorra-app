@@ -1023,19 +1023,25 @@ class GardenCanTorraApp {
 
     try {
       // 3. Petición HTTP real vía fetch()
-      const response = await fetch(currentUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/csv, text/plain, */*'
-        }
-      });
+      const response = await fetch(currentUrl);
 
       if (!response.ok) {
         throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const csvText = await response.text();
-      const parsedRows = this.parseCSV(csvText);
+      const rawData = await response.json();
+
+      // Mapeo flexible de las columnas de tu hoja de cálculo
+      this.products = rawData.map(item => ({
+        Nombre: item.nombre || item.Nombre || '',
+        Precio: typeof item.precio === 'number' ? item.precio : parseFloat(String(item.precio).replace('€', '').replace(',', '.').trim()) || 0,
+        Categoría: item.categoria || item.Categoría || 'Miscelánea',
+        Subcategoría: item.subcategoria || item.Subcategoría || '',
+        Marca: item.marca || item.Marca || 'Can Torra',
+        Imagen: item.imagen || item.Imagen || '',
+        Stock: item.stock !== undefined ? Number(item.stock) : 10
+      }));
+
 
       if (!parsedRows || parsedRows.length === 0) {
         throw new Error("El document CSV obtingut està buit o no conté files de dades.");
